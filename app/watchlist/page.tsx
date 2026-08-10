@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
 
@@ -97,6 +98,9 @@ export default function WatchlistPage() {
                   </td>
                   <td style={{ textAlign: "right" }}>
                     <span className="row" style={{ justifyContent: "flex-end" }}>
+                      <Link href={`/watchlist/${encodeURIComponent(w.ticker)}`} className="btn">
+                        Analyze
+                      </Link>
                       {!poolTickers.has(w.ticker) && (
                         <button onClick={() => promote.mutate(w.ticker)} disabled={promote.isPending}>
                           Promote to Trading Pool

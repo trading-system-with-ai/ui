@@ -1,12 +1,23 @@
 import type {
   AuditEvent,
   MarketOverview,
+  SymbolAnalysis,
   TradingPoolItem,
   TradingStatus,
   WatchlistItem,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -21,7 +32,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // keep statusText
     }
-    throw new Error(detail);
+    throw new ApiError(res.status, detail);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -37,6 +48,8 @@ export const api = {
       }),
     remove: (ticker: string) =>
       request<void>(`/api/watchlist/${ticker}`, { method: "DELETE" }),
+    analysis: (ticker: string) =>
+      request<SymbolAnalysis>(`/api/watchlist/${encodeURIComponent(ticker)}/analysis`),
   },
   tradingPool: {
     list: () => request<TradingPoolItem[]>("/api/trading-pool"),

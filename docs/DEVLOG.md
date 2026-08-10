@@ -4,7 +4,32 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 2: Global kill switch + market overview wiring
+## 2026-08-10 — Iteration 3: Symbol Analysis page
+
+**Built:**
+- `app/watchlist/[ticker]/page.tsx` — Symbol Analysis (plan §33): tabs
+  Overview / Technical / Audit live; Price, Options, News, Backtest, Trade Plan
+  disabled with their delivery phase labeled.
+- Overview: stat tiles (price, regime, bull/bear scores, edge, bias badge) and
+  the signal-component explainability table (name/side/triggered/weight/detail
+  with real numbers) — no opaque confidence numbers anywhere (§33), plus the
+  regime feature grid.
+- Technical: 10-indicator table (null → "insufficient data") and a hand-rolled
+  inline-SVG close/SMA20/SMA50 chart built per the dataviz skill (palette
+  contrast-validated on the dark panel, null-safe segments, gridlines, legend,
+  crosshair tooltip with keyboard support, own horizontal-scroll container).
+- Audit tab reuses the audit API filtered to the symbol.
+- 404 (not on watchlist) renders a clear message + link back; every tab shows
+  "source: … (stub data) · as of …" (§39). `ApiError` now carries HTTP status.
+- Watchlist rows gained an "Analyze" action (first action, links to the page).
+
+**Verified:** typecheck + build clean; independent verifier confirmed all six
+static UX checks (fail-states, staleness line, explainability table, scrolling
+chart container, insufficient-data rendering, Analyze link).
+
+**Next (iteration 4):**
+1. Backtests page v1 (config form + §35 results once backend lands).
+2. Watchlist columns for regime/scores/status.
 
 **Built:**
 - Dashboard banner now driven by the backend global kill switch
