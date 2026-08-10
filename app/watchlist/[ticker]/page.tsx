@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import CandlestickChart from "@/components/charts/CandlestickChart";
 import { api, ApiError } from "@/lib/api";
 import { METRIC_ROWS } from "@/lib/backtest-metrics";
 import { DECISION_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
@@ -19,11 +20,11 @@ import type {
 
 /* ---------------------------------------------------------------- tabs */
 
-type ActiveTab = "overview" | "technical" | "backtest" | "trade-plan" | "audit";
+type ActiveTab = "overview" | "price" | "technical" | "backtest" | "trade-plan" | "audit";
 
 const TABS: { id: string; label: string; phase?: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "price", label: "Price", phase: "Phase 1" },
+  { id: "price", label: "Price" },
   { id: "technical", label: "Technical" },
   { id: "options", label: "Options", phase: "Phase 1" },
   { id: "news", label: "News", phase: "Phase 8" },
@@ -302,6 +303,93 @@ function PriceChart({ series }: { series: AnalysisSeries }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- price tab */
+
+const BAR_RANGES = [60, 120, 250] as const;
+type BarRange = (typeof BAR_RANGES)[number];
+
+function PriceTab({ ticker }: { ticker: string }) {
+  // Range strategy: fetch once at the LARGEST offered range (250, also the
+  // server default) and slice client-side — the 60/120 toggles are instant,
+  // never refetch, and always agree with the 250-bar view's tail.
+  const [range, setRange] = useState<BarRange>(250);
+
+  const bars = useQuery({
+    queryKey: ["bars", ticker],
+    queryFn: () => api.watchlist.bars(ticker),
+    enabled: ticker.length > 0,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status === 404) && failureCount < 1,
+  });
+
+  if (bars.isPending) {
+    return (
+      <div className="panel">
+        <p className="empty">Loading price history for {ticker}…</p>
+      </div>
+    );
+  }
+  if (bars.isError) {
+    const notOnWatchlist = bars.error instanceof ApiError && bars.error.status === 404;
+    return (
+      <div className="panel">
+        {notOnWatchlist ? (
+          <>
+            <p className="error">{bars.error.message || `${ticker} is not on the Watchlist.`}</p>
+            <p style={{ marginTop: 8, color: "var(--text-dim)" }}>
+              Historical data exists only for Watchlist symbols. Add {ticker} on the{" "}
+              <Link href="/watchlist" style={{ color: "var(--accent)" }}>
+                Watchlist page
+              </Link>{" "}
+              to start research.
+            </p>
+          </>
+        ) : (
+          <p className="error">Price history unavailable: {bars.error.message}</p>
+        )}
+      </div>
+    );
+  }
+
+  const all = bars.data.bars;
+  if (all.length === 0) {
+    return (
+      <div className="panel">
+        <p className="empty">No price bars stored for {ticker}.</p>
+      </div>
+    );
+  }
+  const visible = all.slice(-range);
+
+  return (
+    <div className="panel">
+      <div
+        className="row"
+        style={{ justifyContent: "space-between", flexWrap: "wrap", marginBottom: 12 }}
+      >
+        <h2 style={{ marginBottom: 0 }}>Daily OHLC · last {visible.length} bars</h2>
+        <span className="row" role="group" aria-label="Bar range">
+          {BAR_RANGES.map((r) => (
+            <button
+              key={r}
+              className={range === r ? "primary" : ""}
+              aria-pressed={range === r}
+              onClick={() => setRange(r)}
+            >
+              {r}
+            </button>
+          ))}
+        </span>
+      </div>
+      <CandlestickChart bars={visible} />
+      <p className="datasource" style={{ marginTop: 12, marginBottom: 0 }}>
+        source: {bars.data.source} (stub data) · showing {visible.length} of {all.length} bars ·{" "}
+        {visible[0].date} → {visible[visible.length - 1].date}
+      </p>
     </div>
   );
 }
@@ -1016,7 +1104,9 @@ export default function SymbolAnalysisPage() {
         </p>
       )}
 
-      {tab === "audit" ? (
+      {tab === "price" ? (
+        <PriceTab ticker={ticker} />
+      ) : tab === "audit" ? (
         <AuditTab ticker={ticker} />
       ) : tab === "backtest" ? (
         <BacktestTab ticker={ticker} />

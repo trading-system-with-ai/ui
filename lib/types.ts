@@ -96,6 +96,24 @@ export interface SymbolAnalysis {
   series: AnalysisSeries;
 }
 
+/** One daily OHLCV bar from GET /api/watchlist/{ticker}/bars (plan §33). */
+export interface DailyBar {
+  /** YYYY-MM-DD */
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/** GET /api/watchlist/{ticker}/bars — most recent `limit` bars, oldest first. */
+export interface BarsResponse {
+  ticker: string;
+  source: string;
+  bars: DailyBar[];
+}
+
 /* ---------------------------------------------------------------- backtests */
 
 export interface BacktestParams {
@@ -479,10 +497,13 @@ export interface StrategyHealth {
   explanations: string[];
 }
 
+/** Who performed an audited action (mirrors the backend ActorType enum). */
+export type AuditActorType = "USER" | "SYSTEM" | "LLM";
+
 export interface AuditEvent {
   id: number;
   ts: string;
-  actor_type: "USER" | "SYSTEM" | "LLM";
+  actor_type: AuditActorType;
   actor_id: string;
   action: string;
   entity_type: string;

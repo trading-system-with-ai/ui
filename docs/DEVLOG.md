@@ -4,7 +4,27 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 7: Recommendations page + Strategy Health panel
+## 2026-08-10 — Iteration 8: Price tab candlesticks + Activity filter chips + CI
+
+**Built:**
+- Price tab enabled on the symbol page (§33): new
+  `components/charts/CandlestickChart.tsx` — inline-SVG candlesticks (hollow
+  green up / filled red down, CVD-safe fill-state encoding validated with the
+  dataviz palette checker), wicks, price gridlines, volume panel sharing the
+  x-domain, 60/120/250 range toggles, crosshair + keyboard tooltip with full
+  OHLCV, data-source line, own scroll container.
+- Activity page: actor-type chips (USER/SYSTEM/LLM) + action chips built from
+  the live `/api/audit/actions` endpoint, AND-combined with the ticker input;
+  active-filter count with Clear all; explicit loading/error states.
+- GitHub Actions CI (node 22: npm ci + typecheck + build).
+
+**Verified:** typecheck + build clean; UI verifier passed all checks with zero
+fixes.
+
+**Next (iteration 9):**
+1. Options tab (§34 chain table with eligibility highlighting) once the stub
+   chain API lands.
+2. UI container joins docker compose.
 
 **Built:**
 - `app/recommendations/page.tsx` (§30, placeholder replaced): card grid with

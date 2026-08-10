@@ -1,8 +1,10 @@
 import type {
+  AuditActorType,
   AuditEvent,
   BacktestParams,
   BacktestRecord,
   BacktestSummary,
+  BarsResponse,
   CheckExitsResult,
   MarketOverview,
   OrderApproveResult,
@@ -71,6 +73,11 @@ export const api = {
       request<void>(`/api/watchlist/${ticker}`, { method: "DELETE" }),
     analysis: (ticker: string) =>
       request<SymbolAnalysis>(`/api/watchlist/${encodeURIComponent(ticker)}/analysis`),
+    /** Most recent `limit` daily OHLCV bars (10..600, server default 250), oldest first. */
+    bars: (ticker: string, limit?: number) =>
+      request<BarsResponse>(
+        `/api/watchlist/${encodeURIComponent(ticker)}/bars${limit != null ? `?limit=${limit}` : ""}`,
+      ),
     overview: () => request<WatchlistOverviewItem[]>("/api/watchlist/overview"),
   },
   backtests: {
@@ -162,10 +169,17 @@ export const api = {
       request<CheckExitsResult>("/api/positions/check-exits", { method: "POST" }),
   },
   audit: {
-    list: (entityId?: string) =>
-      request<AuditEvent[]>(
-        `/api/audit${entityId ? `?entity_id=${encodeURIComponent(entityId)}` : ""}`,
-      ),
+    /** All provided filters combine with AND semantics on the server. */
+    list: (entityId?: string, action?: string, actorType?: AuditActorType) => {
+      const qs = new URLSearchParams();
+      if (entityId) qs.set("entity_id", entityId);
+      if (action) qs.set("action", action);
+      if (actorType) qs.set("actor_type", actorType);
+      const q = qs.toString();
+      return request<AuditEvent[]>(`/api/audit${q ? `?${q}` : ""}`);
+    },
+    /** Sorted DISTINCT action values present in the audit table (for filter chips). */
+    actions: () => request<string[]>("/api/audit/actions"),
   },
   recommendations: {
     /** Server default is PENDING when no status is given. */
