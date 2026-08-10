@@ -7,6 +7,8 @@ import type {
   BarsResponse,
   CheckExitsResult,
   MarketOverview,
+  OptionChainResponse,
+  OptionDirection,
   OrderApproveResult,
   OrderCloseResult,
   OrderPreview,
@@ -77,6 +79,16 @@ export const api = {
     bars: (ticker: string, limit?: number) =>
       request<BarsResponse>(
         `/api/watchlist/${encodeURIComponent(ticker)}/bars${limit != null ? `?limit=${limit}` : ""}`,
+      ),
+    /**
+     * §34 read-only research chain (no audit event). `direction` defaults to
+     * AUTO server-side, so it is only sent when explicitly non-AUTO.
+     */
+    options: (ticker: string, direction?: OptionDirection) =>
+      request<OptionChainResponse>(
+        `/api/watchlist/${encodeURIComponent(ticker)}/options${
+          direction != null && direction !== "AUTO" ? `?direction=${direction}` : ""
+        }`,
       ),
     overview: () => request<WatchlistOverviewItem[]>("/api/watchlist/overview"),
   },

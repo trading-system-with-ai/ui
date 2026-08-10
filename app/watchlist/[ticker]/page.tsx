@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import CandlestickChart from "@/components/charts/CandlestickChart";
+import OptionChainTable from "@/components/options/OptionChainTable";
 import { api, ApiError } from "@/lib/api";
 import { METRIC_ROWS } from "@/lib/backtest-metrics";
 import { DECISION_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
@@ -20,13 +21,20 @@ import type {
 
 /* ---------------------------------------------------------------- tabs */
 
-type ActiveTab = "overview" | "price" | "technical" | "backtest" | "trade-plan" | "audit";
+type ActiveTab =
+  | "overview"
+  | "price"
+  | "technical"
+  | "options"
+  | "backtest"
+  | "trade-plan"
+  | "audit";
 
 const TABS: { id: string; label: string; phase?: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "price", label: "Price" },
   { id: "technical", label: "Technical" },
-  { id: "options", label: "Options", phase: "Phase 1" },
+  { id: "options", label: "Options" },
   { id: "news", label: "News", phase: "Phase 8" },
   { id: "backtest", label: "Backtest" },
   { id: "trade-plan", label: "Trade Plan" },
@@ -1106,6 +1114,8 @@ export default function SymbolAnalysisPage() {
 
       {tab === "price" ? (
         <PriceTab ticker={ticker} />
+      ) : tab === "options" ? (
+        <OptionChainTable ticker={ticker} />
       ) : tab === "audit" ? (
         <AuditTab ticker={ticker} />
       ) : tab === "backtest" ? (

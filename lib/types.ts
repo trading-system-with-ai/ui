@@ -114,6 +114,76 @@ export interface BarsResponse {
   bars: DailyBar[];
 }
 
+/* ---------------------------------------------------------------- options chain (§34) */
+
+/** Direction hint for GET /api/watchlist/{ticker}/options (server default AUTO). */
+export type OptionDirection = "AUTO" | "BULL" | "BEAR";
+
+export type OptionRight = "C" | "P";
+
+export interface OptionChainSummary {
+  /** ATM implied vol at the nearest 30d+ expiry (fraction, 0.32 = 32%). */
+  atm_iv: number | null;
+  /** ATM-straddle-implied expected move, nearest 30d+ expiry, as a FRACTION of spot. */
+  expected_move_pct: number | null;
+  /** 20-bar realized vol, annualized from stored bars (fraction). */
+  rv20: number | null;
+  /** atm_iv - rv20 (fraction); positive = options priced rich vs realized. */
+  iv_rv_spread: number | null;
+  /** Always null for now — see iv_rank_note. */
+  iv_rank: number | null;
+  iv_rank_note: string;
+}
+
+export interface OptionExpiry {
+  /** YYYY-MM-DD */
+  expiry: string;
+  /** Days to expiry. */
+  dte: number;
+}
+
+export interface OptionContractRow {
+  /** YYYY-MM-DD */
+  expiry: string;
+  dte: number;
+  strike: number;
+  right: OptionRight;
+  bid: number;
+  ask: number;
+  mid: number;
+  /** (ask - bid) / mid, as a fraction. */
+  spread_pct: number;
+  last: number;
+  volume: number;
+  open_interest: number;
+  /** Implied vol (fraction). */
+  iv: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  /** Passes the liquidity/eligibility checks; failures are listed in fail_reasons. */
+  eligible: boolean;
+  fail_reasons: string[];
+  /** 1..N among selected candidates, null when the contract is not a candidate. */
+  candidate_rank: number | null;
+  score: number | null;
+  score_components: Record<string, number | string | boolean> | null;
+}
+
+/** GET /api/watchlist/{ticker}/options — read-only research chain, no audit event. */
+export interface OptionChainResponse {
+  ticker: string;
+  as_of: string;
+  spot: number;
+  source: string;
+  /** null when AUTO resolves to NEUTRAL — no candidate side. */
+  direction_used: "BULL" | "BEAR" | null;
+  summary: OptionChainSummary;
+  expiries: OptionExpiry[];
+  chain: OptionContractRow[];
+}
+
 /* ---------------------------------------------------------------- backtests */
 
 export interface BacktestParams {

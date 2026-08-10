@@ -4,7 +4,29 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 8: Price tab candlesticks + Activity filter chips + CI
+## 2026-08-10 — Iteration 9: Options tab (§34 chain table)
+
+**Built:**
+- Options tab enabled on the symbol page; new
+  `components/options/OptionChainTable.tsx`: summary strip (spot, ATM IV,
+  expected move ±% and ±$, RV20, signed IV−RV, IV Rank "—" with the
+  no-history note, direction badge incl. NO SIGNAL), AUTO/BULL/BEAR toggle
+  (keepPreviousData refetch), expiry chips, the exact §34 All / Eligible /
+  Recommended Candidate view toggle with counts, and the 15-column chain table
+  (prices 2dp, greeks 3dp, IV/spread as %) in its own scroll container.
+- Eligible rows accent-washed; candidates rank-badged (#1…#3) with expandable
+  score-component grids; ineligible rows expand to red fail_reasons.
+- Research-only note (no trade actions on the chain) + stub-chain data-source
+  line. 404/loading/error states mirror the Price tab.
+
+**Verified:** typecheck + build clean; verifier confirmed all §34 checks with
+no source fixes (stale .next macOS duplicates cleared again — build cache
+only; recurring environment artifact, not source).
+
+**Next (iteration 10):**
+1. Trade Plan shows the §8 instrument decision + selected contract once the
+   backend matrix lands.
+2. Consider a small IV smile / term-structure visual on the Options tab.
 
 **Built:**
 - Price tab enabled on the symbol page (§33): new
