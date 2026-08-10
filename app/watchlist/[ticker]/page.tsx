@@ -8,7 +8,14 @@ import CandlestickChart from "@/components/charts/CandlestickChart";
 import OptionChainTable from "@/components/options/OptionChainTable";
 import { api, ApiError } from "@/lib/api";
 import { METRIC_ROWS } from "@/lib/backtest-metrics";
-import { DECISION_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
+import {
+  DECISION_BADGE,
+  INSTRUMENT_BADGE,
+  VOL_REGIME_BADGE,
+  fmtPct,
+  fmtProposedContract,
+  fmtUsd,
+} from "@/lib/risk-format";
 import type {
   AnalysisIndicators,
   AnalysisSeries,
@@ -755,16 +762,38 @@ function ApprovePanel({ ticker, plan }: { ticker: string; plan: OrderPreview }) 
   const risk = plan.risk;
   if (risk == null) return null;
 
+  const { instrument, contract } = plan.proposed;
+  const isOption = instrument === "LONG_CALL" || instrument === "LONG_PUT";
+  const unit = isOption ? "CONTRACTS" : "SHARES";
+
   const onApprove = () => {
     const entry = plan.proposed.entry_price;
-    const ok = confirm(
-      `APPROVE & EXECUTE (paper) — BUY_TO_OPEN ${risk.approved_quantity.toLocaleString()} ${ticker}\n\n` +
-        `Approved quantity: ${risk.approved_quantity.toLocaleString()}\n` +
-        `Entry estimate: ${entry == null ? "unknown" : fmtUsd(entry, 2)} — paper fill = last stored close × (1 + paper_slippage_bps/10000), commission = paper_commission_per_share × qty\n` +
-        `Max loss at stop: ${fmtUsd(risk.trade_risk_usd)}\n\n` +
-        `The server re-runs the FULL gate chain before filling — this client preview is never trusted.`,
-    );
-    if (ok) approve.mutate();
+    // §39 — max loss is NEVER hidden: for options the confirm restates the
+    // instrument, the exact contract, and the full premium at risk
+    // (approved_quantity × max_loss_per_contract).
+    const lines = [
+      `APPROVE & EXECUTE (paper) — BUY_TO_OPEN ${risk.approved_quantity.toLocaleString()} ${ticker} ${unit}`,
+      ``,
+      `Instrument: ${instrument}`,
+      ...(contract != null ? [`Contract: ${fmtProposedContract(contract)}`] : []),
+      `Approved quantity: ${risk.approved_quantity.toLocaleString()} ${unit.toLowerCase()}${
+        isOption ? " (multiplier ×100)" : ""
+      }`,
+      isOption
+        ? `Entry premium: ${entry == null ? "unknown" : fmtUsd(entry, 2)} per contract (mid × 100)`
+        : `Entry estimate: ${entry == null ? "unknown" : fmtUsd(entry, 2)} — paper fill = last stored close × (1 + paper_slippage_bps/10000), commission = paper_commission_per_share × qty`,
+      isOption && contract != null
+        ? `PREMIUM MAX LOSS: ${risk.approved_quantity.toLocaleString()} × ${fmtUsd(
+            contract.max_loss_per_contract,
+            2,
+          )} = ${fmtUsd(
+            risk.approved_quantity * contract.max_loss_per_contract,
+          )} — the FULL premium is at risk (§12.1)`
+        : `Max loss at stop: ${fmtUsd(risk.trade_risk_usd)}`,
+      ``,
+      `The server re-runs the FULL gate chain before filling — this client preview is never trusted.`,
+    ];
+    if (confirm(lines.join("\n"))) approve.mutate();
   };
 
   return (
@@ -780,8 +809,8 @@ function ApprovePanel({ ticker, plan }: { ticker: string; plan: OrderPreview }) 
           </p>
           <p style={{ color: "var(--text-dim)", fontSize: 12, margin: "8px 0" }}>
             Position #{approve.data.position.id}: {approve.data.position.quantity.toLocaleString()}{" "}
-            shares @ {fmtUsd(approve.data.position.avg_price, 2)} avg · stop{" "}
-            {fmtUsd(approve.data.position.stop_price, 2)} · max loss{" "}
+            {isOption ? "contracts" : "shares"} @ {fmtUsd(approve.data.position.avg_price, 2)} avg
+            · stop {fmtUsd(approve.data.position.stop_price, 2)} · max loss{" "}
             {fmtUsd(approve.data.position.max_loss)}. The server re-ran all gates before this
             fill.
           </p>
@@ -809,6 +838,9 @@ function ApprovePanel({ ticker, plan }: { ticker: string; plan: OrderPreview }) 
 function TradePlanResult({ plan, execute }: { plan: OrderPreview; execute?: ReactNode }) {
   const gates = [...plan.gates].sort((a, b) => gateRank(a.name) - gateRank(b.name));
   const { proposed, risk, signal } = plan;
+  const isOption = proposed.instrument === "LONG_CALL" || proposed.instrument === "LONG_PUT";
+  // Quantities are CONTRACTS (×100 multiplier) for options, SHARES for stock.
+  const unitSuffix = isOption ? " CONTRACTS" : proposed.instrument === "LONG_STOCK" ? " SHARES" : "";
   return (
     <>
       <p className="datasource">
@@ -831,70 +863,127 @@ function TradePlanResult({ plan, execute }: { plan: OrderPreview; execute?: Reac
         </ul>
       </div>
 
-      {risk != null && (
-        <div className="panel">
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
-            <h2 style={{ marginBottom: 0 }}>Proposed sizing</h2>
+      <div className="panel">
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 style={{ marginBottom: 0 }}>Proposed sizing</h2>
+          {risk != null && (
             <span className={`badge ${DECISION_BADGE[risk.decision]}`}>{risk.decision}</span>
-          </div>
-          <div className="kv" style={{ marginBottom: 12 }}>
-            <div>
-              <div className="k">Entry price</div>
-              <div className="v">{proposed.entry_price == null ? "—" : fmtUsd(proposed.entry_price, 2)}</div>
-            </div>
-            <div>
-              <div className="k">Stop distance</div>
-              <div className="v">{proposed.stop_distance == null ? "—" : fmtUsd(proposed.stop_distance, 2)}</div>
-            </div>
-            <div>
-              <div className="k">Quantity requested</div>
-              <div className="v">{proposed.quantity_requested == null ? "auto" : proposed.quantity_requested.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="k">Quantity approved</div>
-              <div className="v">{risk.approved_quantity.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="k">Signal strength</div>
-              <div className="v">{risk.signal_strength ?? "—"}</div>
-            </div>
-            <div>
-              <div className="k">Risk budget</div>
-              <div className="v">{risk.risk_budget_pct == null ? "—" : `${fmtPct(risk.risk_budget_pct, 2)} of NAV`}</div>
-            </div>
-            <div>
-              <div className="k">Trade risk</div>
-              <div className="v">{fmtUsd(risk.trade_risk_usd)}</div>
-            </div>
-            <div>
-              <div className="k">Heat before → after</div>
-              <div className="v">
-                {fmtPct(risk.heat_before_pct)} → {fmtPct(risk.heat_after_pct)}
-              </div>
-            </div>
-            <div>
-              <div className="k">Cash after</div>
-              <div className="v">{risk.cash_after_pct == null ? "—" : fmtPct(risk.cash_after_pct)}</div>
-            </div>
-          </div>
-          {risk.reason_codes.length > 0 && (
-            <p className="row" style={{ flexWrap: "wrap", marginBottom: 8 }}>
-              {risk.reason_codes.map((c) => (
-                <span key={c} className="chip">
-                  {c}
-                </span>
-              ))}
-            </p>
-          )}
-          {risk.explanations.length > 0 && (
-            <ul className="why-list" style={{ color: "var(--text-dim)" }}>
-              {risk.explanations.map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ul>
           )}
         </div>
-      )}
+
+        {/* Instrument line — §8 matrix verdict + volatility regime input. */}
+        <div className="row" style={{ flexWrap: "wrap", marginBottom: 8 }}>
+          <span style={{ color: "var(--text-dim)", fontSize: 12 }}>Instrument</span>
+          <span className={`badge ${INSTRUMENT_BADGE[proposed.instrument] ?? "dim"}`}>
+            {proposed.instrument}
+          </span>
+          {proposed.vol_regime != null && (
+            <span
+              className={`badge ${VOL_REGIME_BADGE[proposed.vol_regime] ?? "dim"}`}
+              title="Volatility regime — input to the §8 instrument matrix"
+            >
+              VOL {proposed.vol_regime}
+            </span>
+          )}
+          {isOption ? (
+            <span className="chip">sized in CONTRACTS · multiplier ×100</span>
+          ) : proposed.instrument === "LONG_STOCK" ? (
+            <span className="chip">sized in SHARES</span>
+          ) : null}
+        </div>
+        {(proposed.instrument_rationale ?? []).length > 0 && (
+          <ul className="why-list" style={{ color: "var(--text-dim)", marginBottom: 12 }}>
+            {proposed.instrument_rationale.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ul>
+        )}
+        {proposed.contract != null && (
+          <p
+            className="chip"
+            title="Top-ranked §9 contract candidate"
+            style={{ fontSize: 12, padding: "6px 10px", marginBottom: 12 }}
+          >
+            {fmtProposedContract(proposed.contract)}
+          </p>
+        )}
+
+        {risk != null && (
+          <>
+            <div className="kv" style={{ marginBottom: 12 }}>
+              <div>
+                <div className="k">{isOption ? "Premium / contract (mid × 100)" : "Entry price"}</div>
+                <div className="v">{proposed.entry_price == null ? "—" : fmtUsd(proposed.entry_price, 2)}</div>
+              </div>
+              <div>
+                <div className="k">{isOption ? "Stop distance (full premium)" : "Stop distance"}</div>
+                <div className="v">{proposed.stop_distance == null ? "—" : fmtUsd(proposed.stop_distance, 2)}</div>
+              </div>
+              <div>
+                <div className="k">Quantity requested</div>
+                <div className="v">
+                  {proposed.quantity_requested == null
+                    ? "auto"
+                    : `${proposed.quantity_requested.toLocaleString()}${unitSuffix}`}
+                </div>
+              </div>
+              <div>
+                <div className="k">Quantity approved</div>
+                <div className="v">
+                  {risk.approved_quantity.toLocaleString()}
+                  {unitSuffix}
+                  {isOption ? " (×100)" : ""}
+                </div>
+              </div>
+              <div>
+                <div className="k">Signal strength</div>
+                <div className="v">{risk.signal_strength ?? "—"}</div>
+              </div>
+              <div>
+                <div className="k">Risk budget</div>
+                <div className="v">{risk.risk_budget_pct == null ? "—" : `${fmtPct(risk.risk_budget_pct, 2)} of NAV`}</div>
+              </div>
+              <div>
+                <div className="k">Trade risk</div>
+                <div className="v">{fmtUsd(risk.trade_risk_usd)}</div>
+              </div>
+              <div>
+                <div className="k">Heat before → after</div>
+                <div className="v">
+                  {fmtPct(risk.heat_before_pct)} → {fmtPct(risk.heat_after_pct)}
+                </div>
+              </div>
+              <div>
+                <div className="k">Cash after</div>
+                <div className="v">{risk.cash_after_pct == null ? "—" : fmtPct(risk.cash_after_pct)}</div>
+              </div>
+            </div>
+            {isOption && (
+              <p style={{ color: "var(--text-dim)", fontSize: 12, marginBottom: 8 }}>
+                §12.1 options sizing: entry price and stop distance are BOTH the full premium
+                (mid × 100), so the approved quantity IS the number of contracts and every
+                stock risk cap applies unchanged.
+              </p>
+            )}
+            {risk.reason_codes.length > 0 && (
+              <p className="row" style={{ flexWrap: "wrap", marginBottom: 8 }}>
+                {risk.reason_codes.map((c) => (
+                  <span key={c} className="chip">
+                    {c}
+                  </span>
+                ))}
+              </p>
+            )}
+            {risk.explanations.length > 0 && (
+              <ul className="why-list" style={{ color: "var(--text-dim)" }}>
+                {risk.explanations.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
 
       {execute}
 

@@ -355,6 +355,32 @@ export interface OrderPreviewGate {
   detail: string;
 }
 
+/** §8 instrument matrix verdict — what the system will actually buy. */
+export type Instrument = "LONG_STOCK" | "LONG_CALL" | "LONG_PUT";
+
+/** Volatility classification feeding the §8 instrument matrix. */
+export type VolRegime = "LOW" | "NORMAL" | "HIGH" | "EXTREME";
+
+/**
+ * The top-ranked §9 option contract chosen for an options trade plan
+ * (proposed.contract — null for LONG_STOCK or when no eligible contract).
+ */
+export interface ProposedContract {
+  /** YYYY-MM-DD */
+  expiry: string;
+  dte: number;
+  strike: number;
+  right: OptionRight;
+  mid: number;
+  delta: number;
+  /** Implied vol (fraction, 0.32 = 32%). */
+  iv: number;
+  /** Always 100 — one contract controls 100 shares. */
+  multiplier: number;
+  /** mid × 100 — the FULL premium, entirely at risk (§12.1 / §39). */
+  max_loss_per_contract: number;
+}
+
 export type RiskDecision = "APPROVE" | "APPROVE_WITH_RESIZE" | "REJECT";
 
 export interface OrderPreviewRisk {
@@ -380,7 +406,25 @@ export interface OrderPreview {
     strength: string | null;
   };
   proposed: {
-    instrument: "LONG_STOCK";
+    /**
+     * What the §8 matrix chose. When the INSTRUMENT gate fails with NO_TRADE
+     * the field still reports "NO_TRADE" (the cell + degradation rationale
+     * lives in the gate detail and instrument_rationale).
+     */
+    instrument: Instrument | "NO_TRADE";
+    /** Real volatility classification (VOLATILITY gate detail); null when unavailable. */
+    vol_regime: VolRegime | null;
+    /** §8/§5 citations, rendered as-is. */
+    instrument_rationale: string[];
+    /** Top-ranked §9 candidate; null for LONG_STOCK / NO_TRADE / no eligible contract. */
+    contract: ProposedContract | null;
+    /**
+     * Sizing units (§12.1):
+     * - LONG_STOCK: entry_price = per-share entry, stop_distance = per-share stop distance.
+     * - Options: contract-level units — entry_price and stop_distance are BOTH
+     *   mid × 100 (the premium is fully at risk), so approved_quantity IS the
+     *   number of contracts and every existing risk cap applies unchanged.
+     */
     entry_price: number | null;
     stop_distance: number | null;
     quantity_requested: number | null;
@@ -446,14 +490,38 @@ export interface OrderCloseResult {
 export type PositionStatus = "OPEN" | "CLOSED";
 export type ExitStatus = "HOLD" | "EXIT_SIGNALED";
 
+/** Option-contract details attached to a LONG_CALL / LONG_PUT position row. */
+export interface PositionContract {
+  /** YYYY-MM-DD */
+  expiry: string;
+  strike: number;
+  right: OptionRight;
+  /** Always 100. */
+  multiplier: number;
+  /** REMAINING days to expiry; null when unknown (e.g. CLOSED rows). */
+  dte: number | null;
+  current_mid: number | null;
+  /** current_mid / entry_premium − 1 (fraction, 0.12 = +12%). */
+  premium_pnl_pct: number | null;
+}
+
 /**
  * §37 — a position row always carries WHY the system is still holding
  * (exit_status + exit_reasons). Nulls mean data is missing or the row is CLOSED.
+ *
+ * Option rows (instrument LONG_CALL / LONG_PUT): avg_price = entry premium PER
+ * SHARE (mid at fill), quantity = number of CONTRACTS, market_value =
+ * quantity × current_mid × 100, max_loss = premium paid. exit_reasons include
+ * the option families (§11.3 PREMIUM_HARD_STOP, §11.7 DTE_EXIT) alongside the
+ * underlying-driven rules.
  */
 export interface PositionRow {
   id: number;
   ticker: string;
   status: PositionStatus;
+  instrument: Instrument;
+  /** null for LONG_STOCK rows. */
+  contract: PositionContract | null;
   quantity: number;
   avg_price: number;
   opened_at: string;

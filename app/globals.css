@@ -195,6 +195,7 @@ a.btn:hover { border-color: var(--accent); }
 .badge.amber { background: rgba(210, 153, 34, 0.15); color: var(--amber); }
 .badge.red { background: rgba(248, 81, 73, 0.15); color: var(--red); }
 .badge.dim { background: rgba(139, 148, 158, 0.15); color: var(--text-dim); }
+.badge.accent { background: rgba(68, 147, 248, 0.15); color: var(--accent); }
 
 input[type="number"] {
   background: var(--bg);

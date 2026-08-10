@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Fragment, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
-import { fmtPct, fmtUsd } from "@/lib/risk-format";
+import { INSTRUMENT_BADGE, fmtPct, fmtStrike, fmtUsd } from "@/lib/risk-format";
 import type { CheckExitsResult, PositionRow } from "@/lib/types";
 
 /* ---------------------------------------------------------------- formatting */
@@ -30,6 +30,50 @@ function PnlCell({ pnl, pct }: { pnl: number | null; pct: number | null }) {
           portfolio-risk API — fmtPct scales by 100. */}
       {pct != null && <span style={{ fontSize: 11 }}> ({pnl >= 0 ? "+" : ""}{fmtPct(pct)})</span>}
     </span>
+  );
+}
+
+function InstrumentBadge({ p }: { p: PositionRow }) {
+  // Older backend responses may omit `instrument` — fall back to LONG_STOCK
+  // (the only instrument that existed before the §8 matrix shipped).
+  const instrument = p.instrument ?? "LONG_STOCK";
+  return (
+    <span className={`badge ${INSTRUMENT_BADGE[instrument] ?? "dim"}`}>{instrument}</span>
+  );
+}
+
+/**
+ * For option rows: the contract line shown under the ticker
+ * (right / expiry / strike / remaining DTE) plus the premium P&L chip
+ * (current_mid / entry_premium − 1). Renders nothing for stock rows.
+ */
+function ContractLine({ p }: { p: PositionRow }) {
+  const c = p.contract;
+  if (c == null) return null;
+  const pct = c.premium_pnl_pct;
+  return (
+    <div
+      style={{
+        fontFamily: "var(--font-mono)",
+        fontSize: 11,
+        color: "var(--text-dim)",
+        marginTop: 2,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {c.right} {c.expiry} {fmtStrike(c.strike)}
+      {c.dte != null && <> · {c.dte} DTE</>}
+      {pct != null && (
+        <span
+          className="chip"
+          title="premium P&L: current_mid / entry_premium − 1"
+          style={{ marginLeft: 6, color: pct >= 0 ? "var(--green)" : "var(--red)" }}
+        >
+          {pct >= 0 ? "+" : ""}
+          {fmtPct(pct)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -72,7 +116,7 @@ function EdgeCell({ p }: { p: PositionRow }) {
 
 /* ---------------------------------------------------------------- page */
 
-const OPEN_COLS = 14;
+const OPEN_COLS = 15;
 
 export default function PositionsPage() {
   const qc = useQueryClient();
@@ -224,6 +268,7 @@ export default function PositionsPage() {
               <thead>
                 <tr>
                   <th>Ticker</th>
+                  <th>Instrument</th>
                   <th className="num">Qty</th>
                   <th className="num">Avg price</th>
                   <th className="num">Current</th>
@@ -251,6 +296,10 @@ export default function PositionsPage() {
                         <Link href={`/watchlist/${encodeURIComponent(p.ticker)}`} className="ticker">
                           {p.ticker}
                         </Link>
+                        <ContractLine p={p} />
+                      </td>
+                      <td>
+                        <InstrumentBadge p={p} />
                       </td>
                       <td className="num">{p.quantity.toLocaleString()}</td>
                       <td className="num">{fmtUsd(p.avg_price, 2)}</td>
@@ -365,6 +414,7 @@ export default function PositionsPage() {
               <thead>
                 <tr>
                   <th>Ticker</th>
+                  <th>Instrument</th>
                   <th className="num">Qty</th>
                   <th className="num">Avg price</th>
                   <th className="num">Realized P&L</th>
@@ -379,6 +429,10 @@ export default function PositionsPage() {
                       <Link href={`/watchlist/${encodeURIComponent(p.ticker)}`} className="ticker">
                         {p.ticker}
                       </Link>
+                      <ContractLine p={p} />
+                    </td>
+                    <td>
+                      <InstrumentBadge p={p} />
                     </td>
                     <td className="num">{p.quantity.toLocaleString()}</td>
                     <td className="num">{fmtUsd(p.avg_price, 2)}</td>

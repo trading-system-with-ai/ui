@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { HEAT_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
+import {
+  HEAT_BADGE,
+  INSTRUMENT_BADGE,
+  INSTRUMENT_SHORT,
+  fmtPct,
+  fmtUsd,
+} from "@/lib/risk-format";
 
 export default function Dashboard() {
   const qc = useQueryClient();
@@ -222,10 +228,16 @@ export default function Dashboard() {
               <tbody>
                 {positions.data.map((p) => (
                   <tr key={p.id}>
-                    <td>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       <Link href="/positions" className="ticker">
                         {p.ticker}
-                      </Link>
+                      </Link>{" "}
+                      {/* Compact instrument badge; older backends may omit the field. */}
+                      <span
+                        className={`badge ${INSTRUMENT_BADGE[p.instrument ?? "LONG_STOCK"] ?? "dim"}`}
+                      >
+                        {INSTRUMENT_SHORT[p.instrument ?? "LONG_STOCK"] ?? p.instrument}
+                      </span>
                     </td>
                     <td className="num">{p.quantity.toLocaleString()}</td>
                     <td className="num">

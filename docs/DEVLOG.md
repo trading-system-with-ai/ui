@@ -4,7 +4,26 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 9: Options tab (§34 chain table)
+## 2026-08-10 — Iteration 10: Instrument decision + option contracts in Trade Plan & Positions
+
+**Built:**
+- Trade Plan: instrument badge (LONG_STOCK/LONG_CALL/LONG_PUT/NO_TRADE),
+  vol-regime chip (LOW→EXTREME color ladder), §8/§5 rationale list rendered
+  verbatim, contract card (right/expiry/strike/Δ/IV/DTE/mid/max-loss-per-
+  contract); quantities labeled CONTRACTS (×100) vs SHARES; approve confirm
+  restates instrument + contract + total premium max loss (§39 never hide
+  max loss).
+- Positions: instrument column badge, option contract line with DTE, premium
+  P&L % chip, ×100-consistent market values; PREMIUM_HARD_STOP / DTE_EXIT
+  render in the existing exit-reason expansion.
+- Dashboard mini-table gains the compact instrument badge.
+
+**Verified:** typecheck + build clean first run; verifier passed all five
+static UX checks with zero fixes (incl. null-safety for stock-only previews).
+
+**Next (iteration 11):**
+1. Risk page: portfolio Greeks + delta-adjusted exposure once backend lands.
+2. Consider per-position sparkline of premium P&L.
 
 **Built:**
 - Options tab enabled on the symbol page; new
