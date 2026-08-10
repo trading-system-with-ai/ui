@@ -4,7 +4,33 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 4: Backtests page v1 + watchlist research columns
+## 2026-08-10 — Iteration 5: Risk page v1 + Trade Plan gate chain
+
+**Built:**
+- `app/risk/page.tsx` (§36, placeholder replaced): stat tiles — NAV, Cash with
+  floor sub-line (amber near / red below floor), Portfolio Heat with state
+  badge, Max New Risk, Market Regime, Trading status; correlation-bucket
+  utilization meters (severity-colored, ARIA meter roles); positions table
+  (null market data → "no data", max loss always visible in red); hard-limits
+  panel with plan meanings; recent RISK_DECISION audit events.
+- Trade Plan tab enabled on the symbol page (§33): Generate Trade Plan calls
+  the order-preview API; the §10 gate chain renders as a vertical stepper with
+  every gate always visible (PASS/FAIL/SKIPPED + detail); sizing panel
+  (entry/stop/requested vs approved/budget/heat before-after/cash after) with
+  decision badge + reason-code chips; Why Trade and Why Not Trade side by side;
+  prominent "PREVIEW — no order is placed" note.
+- Dashboard NAV/Cash/Heat tiles now live from the portfolio API.
+- `lib/risk-format.ts` shared badge/format helpers.
+
+**Verified:** typecheck + build clean. The adversarial UI verifier caught and
+fixed 3 real unit bugs before they shipped: fmtPct treated fractions as
+percents (100% cash rendered "1.0%"), the cash near-floor band compared
+fraction to percent (always amber), and bucket utilization bars never exceeded
+1% width (severity always green). All §36/§33 UX checks pass post-fix.
+
+**Next (iteration 6):**
+1. Positions page v1 (§37) with exit-status context.
+2. Order approve flow from Trade Plan once backend lands.
 
 **Built:**
 - `app/backtests/page.tsx` (placeholder replaced): config panel with grouped

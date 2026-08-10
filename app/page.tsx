@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { HEAT_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
 
 export default function Dashboard() {
   const qc = useQueryClient();
@@ -13,6 +14,7 @@ export default function Dashboard() {
   const audit = useQuery({ queryKey: ["audit"], queryFn: () => api.audit.list() });
   const status = useQuery({ queryKey: ["trading-status"], queryFn: api.trading.status });
   const overview = useQuery({ queryKey: ["market-overview"], queryFn: api.market.overview });
+  const risk = useQuery({ queryKey: ["portfolio-risk"], queryFn: api.portfolio.risk });
 
   const invalidateStatus = () => {
     qc.invalidateQueries({ queryKey: ["trading-status"] });
@@ -119,15 +121,23 @@ export default function Dashboard() {
         </div>
         <div className="stat">
           <div className="label">Portfolio NAV</div>
-          <div className="value">—</div>
+          <div className="value">{risk.data ? fmtUsd(risk.data.nav) : "—"}</div>
         </div>
         <div className="stat">
           <div className="label">Cash</div>
-          <div className="value">—</div>
+          <div className="value">{risk.data ? fmtUsd(risk.data.cash) : "—"}</div>
+          {risk.data && <div className="sub">{fmtPct(risk.data.cash_pct)} of NAV</div>}
         </div>
         <div className="stat">
           <div className="label">Portfolio Heat</div>
-          <div className="value">0.0%</div>
+          <div className="value">
+            {risk.data ? fmtPct(risk.data.portfolio_heat_pct) : "—"}{" "}
+            {risk.data && (
+              <span className={`badge ${HEAT_BADGE[risk.data.heat_state]}`}>
+                {risk.data.heat_state}
+              </span>
+            )}
+          </div>
         </div>
         <div className="stat">
           <div className="label">Watchlist</div>

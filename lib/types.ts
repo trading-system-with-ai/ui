@@ -196,6 +196,112 @@ export interface WatchlistOverviewItem {
   last_backtest_id: number | null;
 }
 
+/* ---------------------------------------------------------------- portfolio risk */
+
+export type HeatState = "NORMAL" | "ELEVATED" | "HIGH" | "BLOCKED";
+
+export interface RiskPosition {
+  ticker: string;
+  quantity: number;
+  avg_price: number;
+  market_price: number | null;
+  market_value: number | null;
+  max_loss: number;
+  opened_at: string;
+}
+
+export interface RiskBucket {
+  name: string;
+  tickers: string[];
+  risk_usd: number;
+  risk_pct: number;
+  cap_pct: number;
+  utilization_pct: number;
+}
+
+export interface RiskLimits {
+  single_name_risk_pct: number;
+  single_name_capital_pct: number;
+  bucket_risk_pct: number;
+  heat_elevated_pct: number;
+  heat_high_pct: number;
+  heat_reject_pct: number;
+  abs_max_trade_risk_pct: number;
+}
+
+export interface PortfolioRisk {
+  as_of: string;
+  nav: number;
+  cash: number;
+  cash_pct: number;
+  market_regime: string;
+  cash_floor_pct: number;
+  trading_enabled: boolean;
+  portfolio_heat_pct: number;
+  heat_state: HeatState;
+  max_new_risk_usd: number;
+  max_new_risk_pct: number;
+  positions: RiskPosition[];
+  buckets: RiskBucket[];
+  limits: RiskLimits;
+}
+
+/* ---------------------------------------------------------------- order preview */
+
+export type GateName =
+  | "TRADING_POOL_AUTHORIZATION"
+  | "DATA_QUALITY"
+  | "REGIME"
+  | "DIRECTIONAL_SIGNAL"
+  | "VOLATILITY"
+  | "INSTRUMENT"
+  | "LIQUIDITY"
+  | "CONTRACT_SELECTION"
+  | "RISK_APPROVAL";
+
+export type GateStatus = "PASS" | "FAIL" | "SKIPPED";
+
+export interface OrderPreviewGate {
+  name: GateName;
+  status: GateStatus;
+  detail: string;
+}
+
+export type RiskDecision = "APPROVE" | "APPROVE_WITH_RESIZE" | "REJECT";
+
+export interface OrderPreviewRisk {
+  decision: RiskDecision;
+  approved_quantity: number;
+  signal_strength: string | null;
+  risk_budget_pct: number | null;
+  trade_risk_usd: number;
+  reason_codes: string[];
+  explanations: string[];
+  heat_before_pct: number;
+  heat_after_pct: number;
+  cash_after_pct: number | null;
+}
+
+export interface OrderPreview {
+  ticker: string;
+  as_of: string;
+  gates: OrderPreviewGate[];
+  signal: {
+    edge: number | null;
+    bias: string | null;
+    strength: string | null;
+  };
+  proposed: {
+    instrument: "LONG_STOCK";
+    entry_price: number | null;
+    stop_distance: number | null;
+    quantity_requested: number | null;
+  };
+  risk: OrderPreviewRisk | null;
+  why_trade: string[];
+  why_not_trade: string[];
+}
+
 export interface AuditEvent {
   id: number;
   ts: string;

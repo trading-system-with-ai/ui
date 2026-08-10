@@ -4,6 +4,8 @@ import type {
   BacktestRecord,
   BacktestSummary,
   MarketOverview,
+  OrderPreview,
+  PortfolioRisk,
   SymbolAnalysis,
   TradingPoolItem,
   TradingStatus,
@@ -98,6 +100,16 @@ export const api = {
   },
   market: {
     overview: () => request<MarketOverview>("/api/market/overview"),
+  },
+  portfolio: {
+    risk: () => request<PortfolioRisk>("/api/portfolio/risk"),
+  },
+  orders: {
+    preview: (ticker: string, quantity?: number) =>
+      request<OrderPreview>("/api/orders/preview", {
+        method: "POST",
+        body: JSON.stringify(quantity != null ? { ticker, quantity } : { ticker }),
+      }),
   },
   audit: {
     list: (entityId?: string) =>

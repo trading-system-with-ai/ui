@@ -1,16 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { METRIC_ROWS } from "@/lib/backtest-metrics";
-import type { AnalysisIndicators, AnalysisSeries, SymbolAnalysis } from "@/lib/types";
+import { DECISION_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
+import type {
+  AnalysisIndicators,
+  AnalysisSeries,
+  GateName,
+  OrderPreview,
+  OrderPreviewGate,
+  SymbolAnalysis,
+} from "@/lib/types";
 
 /* ---------------------------------------------------------------- tabs */
 
-type ActiveTab = "overview" | "technical" | "backtest" | "audit";
+type ActiveTab = "overview" | "technical" | "backtest" | "trade-plan" | "audit";
 
 const TABS: { id: string; label: string; phase?: string }[] = [
   { id: "overview", label: "Overview" },
@@ -19,7 +27,7 @@ const TABS: { id: string; label: string; phase?: string }[] = [
   { id: "options", label: "Options", phase: "Phase 1" },
   { id: "news", label: "News", phase: "Phase 8" },
   { id: "backtest", label: "Backtest" },
-  { id: "trade-plan", label: "Trade Plan", phase: "Phase 4" },
+  { id: "trade-plan", label: "Trade Plan" },
   { id: "audit", label: "Audit" },
 ];
 
@@ -524,6 +532,239 @@ function BacktestTab({ ticker }: { ticker: string }) {
   );
 }
 
+/* ---------------------------------------------------------------- trade plan */
+
+// §10 gate order — the stepper always renders in exactly this sequence.
+const GATE_ORDER: GateName[] = [
+  "TRADING_POOL_AUTHORIZATION",
+  "DATA_QUALITY",
+  "REGIME",
+  "DIRECTIONAL_SIGNAL",
+  "VOLATILITY",
+  "INSTRUMENT",
+  "LIQUIDITY",
+  "CONTRACT_SELECTION",
+  "RISK_APPROVAL",
+];
+
+function gateRank(name: string): number {
+  const i = GATE_ORDER.indexOf(name as GateName);
+  return i === -1 ? GATE_ORDER.length : i;
+}
+
+function GateStep({ gate }: { gate: OrderPreviewGate }) {
+  const cls = gate.status.toLowerCase(); // pass | fail | skipped
+  const glyph = gate.status === "PASS" ? "✓" : gate.status === "FAIL" ? "✕" : "–";
+  return (
+    <li className={`gate-step ${cls}`}>
+      <span className={`g-icon ${cls}`} aria-hidden="true">
+        {glyph}
+      </span>
+      <div>
+        <div className="g-name">
+          {gate.name}{" "}
+          <span
+            className={`badge ${
+              gate.status === "PASS" ? "green" : gate.status === "FAIL" ? "red" : "dim"
+            }`}
+          >
+            {gate.status}
+          </span>
+        </div>
+        <div className="g-detail">{gate.detail}</div>
+      </div>
+    </li>
+  );
+}
+
+function WhyList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="panel" style={{ marginBottom: 0 }}>
+      <h2>{title}</h2>
+      {items.length > 0 ? (
+        <ul className="why-list">
+          {items.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="none">none</p>
+      )}
+    </div>
+  );
+}
+
+function TradePlanResult({ plan }: { plan: OrderPreview }) {
+  const gates = [...plan.gates].sort((a, b) => gateRank(a.name) - gateRank(b.name));
+  const { proposed, risk, signal } = plan;
+  return (
+    <>
+      <p className="datasource">
+        as of {new Date(plan.as_of).toLocaleString()} · instrument: {proposed.instrument}
+        {signal.bias != null && <> · signal bias {signal.bias}</>}
+        {signal.edge != null && <> · edge {signal.edge > 0 ? "+" : ""}{signal.edge.toFixed(1)}</>}
+        {signal.strength != null && <> · strength {signal.strength}</>}
+      </p>
+
+      <div className="panel">
+        <h2>Gate chain</h2>
+        <p style={{ color: "var(--text-dim)", fontSize: 12, marginBottom: 12 }}>
+          Every order proposal passes these gates in order — a FAIL stops evaluation and the
+          remaining gates are not evaluated. Nothing is hidden.
+        </p>
+        <ul className="gate-list">
+          {gates.map((g) => (
+            <GateStep key={g.name} gate={g} />
+          ))}
+        </ul>
+      </div>
+
+      {risk != null && (
+        <div className="panel">
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+            <h2 style={{ marginBottom: 0 }}>Proposed sizing</h2>
+            <span className={`badge ${DECISION_BADGE[risk.decision]}`}>{risk.decision}</span>
+          </div>
+          <div className="kv" style={{ marginBottom: 12 }}>
+            <div>
+              <div className="k">Entry price</div>
+              <div className="v">{proposed.entry_price == null ? "—" : fmtUsd(proposed.entry_price, 2)}</div>
+            </div>
+            <div>
+              <div className="k">Stop distance</div>
+              <div className="v">{proposed.stop_distance == null ? "—" : fmtUsd(proposed.stop_distance, 2)}</div>
+            </div>
+            <div>
+              <div className="k">Quantity requested</div>
+              <div className="v">{proposed.quantity_requested == null ? "auto" : proposed.quantity_requested.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="k">Quantity approved</div>
+              <div className="v">{risk.approved_quantity.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="k">Signal strength</div>
+              <div className="v">{risk.signal_strength ?? "—"}</div>
+            </div>
+            <div>
+              <div className="k">Risk budget</div>
+              <div className="v">{risk.risk_budget_pct == null ? "—" : `${fmtPct(risk.risk_budget_pct, 2)} of NAV`}</div>
+            </div>
+            <div>
+              <div className="k">Trade risk</div>
+              <div className="v">{fmtUsd(risk.trade_risk_usd)}</div>
+            </div>
+            <div>
+              <div className="k">Heat before → after</div>
+              <div className="v">
+                {fmtPct(risk.heat_before_pct)} → {fmtPct(risk.heat_after_pct)}
+              </div>
+            </div>
+            <div>
+              <div className="k">Cash after</div>
+              <div className="v">{risk.cash_after_pct == null ? "—" : fmtPct(risk.cash_after_pct)}</div>
+            </div>
+          </div>
+          {risk.reason_codes.length > 0 && (
+            <p className="row" style={{ flexWrap: "wrap", marginBottom: 8 }}>
+              {risk.reason_codes.map((c) => (
+                <span key={c} className="chip">
+                  {c}
+                </span>
+              ))}
+            </p>
+          )}
+          {risk.explanations.length > 0 && (
+            <ul className="why-list" style={{ color: "var(--text-dim)" }}>
+              {risk.explanations.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="why-cols" style={{ marginBottom: 16 }}>
+        <WhyList title="Why trade" items={plan.why_trade} />
+        <WhyList title="Why not trade" items={plan.why_not_trade} />
+      </div>
+    </>
+  );
+}
+
+function TradePlanTab({ ticker }: { ticker: string }) {
+  const [qty, setQty] = useState("");
+  const [inputError, setInputError] = useState("");
+
+  const preview = useMutation({
+    mutationFn: (quantity?: number) => api.orders.preview(ticker, quantity),
+  });
+
+  const onGenerate = () => {
+    const trimmed = qty.trim();
+    if (trimmed === "") {
+      setInputError("");
+      preview.mutate(undefined);
+      return;
+    }
+    const n = Number(trimmed);
+    if (!Number.isInteger(n) || n <= 0) {
+      setInputError("Quantity must be a positive whole number (or blank for auto-sizing).");
+      return;
+    }
+    setInputError("");
+    preview.mutate(n);
+  };
+
+  return (
+    <>
+      <div className="preview-note">
+        <strong>PREVIEW ONLY</strong> — no order is placed. This runs the full gate chain and
+        risk sizing, and writes an auditable RISK_DECISION event. Execution arrives in Phase 6.
+      </div>
+
+      <div className="panel">
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            placeholder="quantity (optional)"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            style={{ width: 170 }}
+            aria-label="Requested quantity (optional — blank lets the risk engine size the trade)"
+          />
+          <button className="primary" onClick={onGenerate} disabled={preview.isPending}>
+            {preview.isPending ? "Generating…" : "Generate Trade Plan"}
+          </button>
+          <span style={{ color: "var(--text-dim)", fontSize: 12 }}>
+            Leave quantity blank to let the risk engine size the trade.
+          </span>
+        </div>
+        {inputError && <p className="error">{inputError}</p>}
+        {preview.isError && (
+          <p className="error">Trade plan unavailable: {preview.error.message}</p>
+        )}
+      </div>
+
+      {preview.data ? (
+        <TradePlanResult plan={preview.data} />
+      ) : (
+        !preview.isPending &&
+        !preview.isError && (
+          <div className="panel">
+            <p className="empty">
+              Generate a trade plan to see the gate chain, proposed sizing, and the reasons
+              for and against trading {ticker}.
+            </p>
+          </div>
+        )
+      )}
+    </>
+  );
+}
+
 function AuditTab({ ticker }: { ticker: string }) {
   const audit = useQuery({
     queryKey: ["audit", ticker],
@@ -645,6 +886,8 @@ export default function SymbolAnalysisPage() {
         <AuditTab ticker={ticker} />
       ) : tab === "backtest" ? (
         <BacktestTab ticker={ticker} />
+      ) : tab === "trade-plan" ? (
+        <TradePlanTab ticker={ticker} />
       ) : analysis.isPending ? (
         <div className="panel">
           <p className="empty">Loading analysis for {ticker}…</p>
