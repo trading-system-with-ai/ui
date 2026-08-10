@@ -302,6 +302,98 @@ export interface OrderPreview {
   why_not_trade: string[];
 }
 
+/* ---------------------------------------------------------------- paper orders & positions */
+
+export type OrderSide = "BUY_TO_OPEN" | "SELL_TO_CLOSE";
+
+/**
+ * A filled paper order. Paper fill model (constants shared with server settings):
+ *   BUY fill  = last stored close * (1 + paper_slippage_bps / 10000)
+ *   SELL fill = last stored close * (1 - paper_slippage_bps / 10000)
+ *   commission = paper_commission_per_share * quantity, charged both ways.
+ */
+export interface PaperOrder {
+  id: number;
+  client_order_id: string | null;
+  ticker: string;
+  side: OrderSide;
+  quantity: number;
+  fill_price: number;
+  commission: number;
+  status: "FILLED";
+  created_at: string;
+}
+
+export interface OrderPositionSummary {
+  id: number;
+  ticker: string;
+  quantity: number;
+  avg_price: number;
+  stop_price: number;
+  max_loss: number;
+}
+
+export interface OrderApproveResult {
+  order: PaperOrder;
+  position: OrderPositionSummary;
+  /** The gate-chain re-run the server performed at approval time (§10). */
+  preview: OrderPreview;
+}
+
+/**
+ * 422 body from POST /api/orders/approve — the server ALWAYS re-runs the full
+ * gate chain at approval time and rejects with the fresh preview embedded.
+ */
+export interface OrderApproveErrorDetail {
+  message: string;
+  preview: OrderPreview;
+}
+
+export interface OrderCloseResult {
+  order: PaperOrder;
+  position: OrderPositionSummary;
+  realized_pnl: number;
+}
+
+export type PositionStatus = "OPEN" | "CLOSED";
+export type ExitStatus = "HOLD" | "EXIT_SIGNALED";
+
+/**
+ * §37 — a position row always carries WHY the system is still holding
+ * (exit_status + exit_reasons). Nulls mean data is missing or the row is CLOSED.
+ */
+export interface PositionRow {
+  id: number;
+  ticker: string;
+  status: PositionStatus;
+  quantity: number;
+  avg_price: number;
+  opened_at: string;
+  closed_at: string | null;
+  current_price: number | null;
+  market_value: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_pct: number | null;
+  realized_pnl: number | null;
+  max_loss: number;
+  stop_price: number;
+  trail_price: number | null;
+  entry_edge: number;
+  current_edge: number | null;
+  /** entry_edge - current_edge (positive = the signal has weakened since entry). */
+  signal_decay: number | null;
+  bars_held: number | null;
+  time_stop_remaining: number | null;
+  exit_status: ExitStatus | null;
+  exit_reasons: string[];
+}
+
+export interface CheckExitsResult {
+  checked: number;
+  exits_triggered: { ticker: string; rule: string; order_id: number }[];
+  held: { ticker: string; reasons: string[] }[];
+}
+
 export interface AuditEvent {
   id: number;
   ts: string;

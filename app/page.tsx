@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { HEAT_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
@@ -15,6 +16,10 @@ export default function Dashboard() {
   const status = useQuery({ queryKey: ["trading-status"], queryFn: api.trading.status });
   const overview = useQuery({ queryKey: ["market-overview"], queryFn: api.market.overview });
   const risk = useQuery({ queryKey: ["portfolio-risk"], queryFn: api.portfolio.risk });
+  const positions = useQuery({
+    queryKey: ["positions", "OPEN"],
+    queryFn: () => api.positions.list("OPEN"),
+  });
 
   const invalidateStatus = () => {
     qc.invalidateQueries({ queryKey: ["trading-status"] });
@@ -192,6 +197,79 @@ export default function Dashboard() {
         ) : (
           <p className="empty">
             {overview.isError ? "Market overview unavailable." : "Loading market overview…"}
+          </p>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 style={{ marginBottom: 0 }}>Active Positions</h2>
+          <Link href="/positions" style={{ color: "var(--accent)", fontSize: 12 }}>
+            All positions →
+          </Link>
+        </div>
+        {positions.data ? (
+          positions.data.length > 0 ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th className="num">Qty</th>
+                  <th className="num">Unrealized P&L</th>
+                  <th>Exit status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.data.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <Link href="/positions" className="ticker">
+                        {p.ticker}
+                      </Link>
+                    </td>
+                    <td className="num">{p.quantity.toLocaleString()}</td>
+                    <td className="num">
+                      {p.unrealized_pnl == null ? (
+                        <span style={{ color: "var(--text-dim)" }}>—</span>
+                      ) : (
+                        <span
+                          style={{
+                            color: p.unrealized_pnl >= 0 ? "var(--green)" : "var(--red)",
+                          }}
+                        >
+                          {p.unrealized_pnl >= 0 ? "+" : ""}
+                          {fmtUsd(p.unrealized_pnl, 2)}
+                          {p.unrealized_pnl_pct != null && (
+                            <span style={{ fontSize: 11 }}>
+                              {" "}
+                              ({p.unrealized_pnl >= 0 ? "+" : ""}
+                              {fmtPct(p.unrealized_pnl_pct)})
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {p.exit_status == null ? (
+                        <span style={{ color: "var(--text-dim)" }}>—</span>
+                      ) : (
+                        <span
+                          className={`badge ${p.exit_status === "EXIT_SIGNALED" ? "red" : "dim"}`}
+                        >
+                          {p.exit_status}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty">No open positions.</p>
+          )
+        ) : (
+          <p className="empty">
+            {positions.isError ? "Positions unavailable." : "Loading positions…"}
           </p>
         )}
       </div>

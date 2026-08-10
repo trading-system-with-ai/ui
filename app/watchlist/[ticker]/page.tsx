@@ -1,9 +1,9 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api, ApiError } from "@/lib/api";
 import { METRIC_ROWS } from "@/lib/backtest-metrics";
 import { DECISION_BADGE, fmtPct, fmtUsd } from "@/lib/risk-format";
@@ -11,6 +11,7 @@ import type {
   AnalysisIndicators,
   AnalysisSeries,
   GateName,
+  OrderApproveErrorDetail,
   OrderPreview,
   OrderPreviewGate,
   SymbolAnalysis,
@@ -594,7 +595,122 @@ function WhyList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function TradePlanResult({ plan }: { plan: OrderPreview }) {
+function isApproveErrorDetail(d: unknown): d is OrderApproveErrorDetail {
+  if (typeof d !== "object" || d === null) return false;
+  const obj = d as Record<string, unknown>;
+  if (typeof obj.message !== "string") return false;
+  const preview = obj.preview;
+  return (
+    typeof preview === "object" &&
+    preview !== null &&
+    Array.isArray((preview as { gates?: unknown }).gates)
+  );
+}
+
+function ApproveErrorView({ ticker, error }: { ticker: string; error: Error }) {
+  if (error instanceof ApiError) {
+    if (error.status === 422 && isApproveErrorDetail(error.detail)) {
+      const failed = error.detail.preview.gates.find((g) => g.status === "FAIL");
+      return (
+        <div>
+          <p className="error">
+            Approval rejected — the server re-ran the full gate chain at approval time (client
+            previews are never trusted) and it no longer passes: {error.detail.message}
+          </p>
+          {failed && (
+            <p className="error" style={{ fontFamily: "var(--font-mono)" }}>
+              FAILED gate: {failed.name} — {failed.detail}
+            </p>
+          )}
+        </div>
+      );
+    }
+    if (error.status === 409) {
+      return (
+        <p className="error">
+          {ticker} already has an open position — adding to an open position (pyramiding) is not
+          supported in V1. Close it on the Positions page first.
+        </p>
+      );
+    }
+  }
+  return <p className="error">Approval failed: {error.message}</p>;
+}
+
+function ApprovePanel({ ticker, plan }: { ticker: string; plan: OrderPreview }) {
+  const qc = useQueryClient();
+  // Idempotency key (§42): one UUID per click-intent. Accidental double-clicks
+  // and retries reuse the same key — the server returns the existing order
+  // instead of filling twice. Regenerated only after a successful fill, so the
+  // next intent is a fresh order.
+  const [clientOrderId, setClientOrderId] = useState(() => crypto.randomUUID());
+
+  const approve = useMutation({
+    mutationFn: () =>
+      api.orders.approve(ticker, plan.proposed.quantity_requested ?? undefined, clientOrderId),
+    onSuccess: () => {
+      setClientOrderId(crypto.randomUUID());
+      qc.invalidateQueries({ queryKey: ["positions"] });
+      qc.invalidateQueries({ queryKey: ["portfolio-risk"] });
+      qc.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+
+  const risk = plan.risk;
+  if (risk == null) return null;
+
+  const onApprove = () => {
+    const entry = plan.proposed.entry_price;
+    const ok = confirm(
+      `APPROVE & EXECUTE (paper) — BUY_TO_OPEN ${risk.approved_quantity.toLocaleString()} ${ticker}\n\n` +
+        `Approved quantity: ${risk.approved_quantity.toLocaleString()}\n` +
+        `Entry estimate: ${entry == null ? "unknown" : fmtUsd(entry, 2)} — paper fill = last stored close × (1 + paper_slippage_bps/10000), commission = paper_commission_per_share × qty\n` +
+        `Max loss at stop: ${fmtUsd(risk.trade_risk_usd)}\n\n` +
+        `The server re-runs the FULL gate chain before filling — this client preview is never trusted.`,
+    );
+    if (ok) approve.mutate();
+  };
+
+  return (
+    <div className="panel">
+      <h2>Execute (paper)</h2>
+      {approve.data ? (
+        <>
+          <p style={{ color: "var(--green)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
+            FILLED — order #{approve.data.order.id} · {approve.data.order.side}{" "}
+            {approve.data.order.quantity.toLocaleString()} {approve.data.order.ticker} @{" "}
+            {fmtUsd(approve.data.order.fill_price, 2)} · commission{" "}
+            {fmtUsd(approve.data.order.commission, 2)}
+          </p>
+          <p style={{ color: "var(--text-dim)", fontSize: 12, margin: "8px 0" }}>
+            Position #{approve.data.position.id}: {approve.data.position.quantity.toLocaleString()}{" "}
+            shares @ {fmtUsd(approve.data.position.avg_price, 2)} avg · stop{" "}
+            {fmtUsd(approve.data.position.stop_price, 2)} · max loss{" "}
+            {fmtUsd(approve.data.position.max_loss)}. The server re-ran all gates before this
+            fill.
+          </p>
+          <Link href="/positions" className="btn">
+            View on Positions →
+          </Link>
+        </>
+      ) : (
+        <>
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <button className="primary" onClick={onApprove} disabled={approve.isPending}>
+              {approve.isPending ? "Executing…" : "Approve & Execute (paper)"}
+            </button>
+            <span style={{ color: "var(--text-dim)", fontSize: 12 }}>
+              Approval re-runs the full gate chain server-side before any paper fill.
+            </span>
+          </div>
+          {approve.isError && <ApproveErrorView ticker={ticker} error={approve.error} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function TradePlanResult({ plan, execute }: { plan: OrderPreview; execute?: ReactNode }) {
   const gates = [...plan.gates].sort((a, b) => gateRank(a.name) - gateRank(b.name));
   const { proposed, risk, signal } = plan;
   return (
@@ -684,6 +800,8 @@ function TradePlanResult({ plan }: { plan: OrderPreview }) {
         </div>
       )}
 
+      {execute}
+
       <div className="why-cols" style={{ marginBottom: 16 }}>
         <WhyList title="Why trade" items={plan.why_trade} />
         <WhyList title="Why not trade" items={plan.why_not_trade} />
@@ -716,11 +834,18 @@ function TradePlanTab({ ticker }: { ticker: string }) {
     preview.mutate(n);
   };
 
+  const canExecute =
+    preview.data?.risk != null &&
+    (preview.data.risk.decision === "APPROVE" ||
+      preview.data.risk.decision === "APPROVE_WITH_RESIZE");
+
   return (
     <>
       <div className="preview-note">
-        <strong>PREVIEW ONLY</strong> — no order is placed. This runs the full gate chain and
-        risk sizing, and writes an auditable RISK_DECISION event. Execution arrives in Phase 6.
+        <strong>PREVIEW</strong> — generating a plan places no order; it runs the full gate
+        chain and risk sizing and writes an auditable RISK_DECISION event. Approving executes a
+        paper order, and approval re-runs ALL gates server-side — a stale client preview is
+        never trusted.
       </div>
 
       <div className="panel">
@@ -749,7 +874,16 @@ function TradePlanTab({ ticker }: { ticker: string }) {
       </div>
 
       {preview.data ? (
-        <TradePlanResult plan={preview.data} />
+        <TradePlanResult
+          plan={preview.data}
+          execute={
+            canExecute ? (
+              // Keyed per preview run: a regenerated plan resets the approve
+              // state (fresh fill display + fresh idempotency key).
+              <ApprovePanel key={preview.submittedAt} ticker={ticker} plan={preview.data} />
+            ) : undefined
+          }
+        />
       ) : (
         !preview.isPending &&
         !preview.isError && (

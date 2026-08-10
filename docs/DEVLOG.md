@@ -4,7 +4,31 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 5: Risk page v1 + Trade Plan gate chain
+## 2026-08-10 — Iteration 6: Positions page v1 + paper order approve flow
+
+**Built:**
+- `app/positions/page.tsx` (§37, placeholder replaced): open-positions table
+  with P&L coloring, max loss, stop/trail prices, entry→current edge with
+  signal-decay delta chip, bars held, time-stop countdown, HOLD/EXIT_SIGNALED
+  badges, and expandable per-position exit_reasons (OK-prefixed dimmed,
+  triggered red) — the "why are we still holding" view; per-row Close with
+  partial-quantity prompt and a confirm dialog stating the paper fill model
+  and the closing-while-paused rule; Run Exit Check button with result banner;
+  closed-positions panel with realized P&L.
+- Trade Plan tab: "Approve & Execute (paper)" appears only for
+  APPROVE/APPROVE_WITH_RESIZE; crypto.randomUUID() client_order_id per
+  click-intent (idempotent double-clicks, regenerated after success); confirm
+  restates qty/entry/max loss; structured 422 renders the server's re-run
+  failed gate; success links to /positions.
+- Dashboard Active Positions panel wired live.
+
+**Verified:** typecheck + build clean (verifier again cleared stale macOS
+".next" duplicate artifacts — build output only); all eight §37/§42 UX checks
+passed with no source fixes needed.
+
+**Next (iteration 7):**
+1. Recommendations page (§30) once the backend Recommendation Pool lands.
+2. Activity page filter chips (action-type filters) as audit volume grows.
 
 **Built:**
 - `app/risk/page.tsx` (§36, placeholder replaced): stat tiles — NAV, Cash with

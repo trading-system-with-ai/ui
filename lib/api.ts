@@ -3,9 +3,14 @@ import type {
   BacktestParams,
   BacktestRecord,
   BacktestSummary,
+  CheckExitsResult,
   MarketOverview,
+  OrderApproveResult,
+  OrderCloseResult,
   OrderPreview,
   PortfolioRisk,
+  PositionRow,
+  PositionStatus,
   SymbolAnalysis,
   TradingPoolItem,
   TradingStatus,
@@ -17,11 +22,14 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   status: number;
+  /** Structured `detail` body when the server sent one (e.g. approve 422 embeds a preview). */
+  detail: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, detail?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -31,14 +39,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    let detail = res.statusText;
+    let message = res.statusText;
+    let detail: unknown;
     try {
       const body = await res.json();
-      detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      detail = body.detail;
+      message = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
     } catch {
       // keep statusText
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, message, detail);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -110,6 +120,41 @@ export const api = {
         method: "POST",
         body: JSON.stringify(quantity != null ? { ticker, quantity } : { ticker }),
       }),
+    /**
+     * Approve & execute a paper BUY. The server re-runs the FULL gate chain
+     * (client previews are never trusted) — a 422 embeds the fresh preview as
+     * OrderApproveErrorDetail; 409 means an open position already exists (no
+     * pyramiding in V1). `clientOrderId` is an idempotency key (§42): the same
+     * key returns the existing order instead of filling twice.
+     */
+    approve: (ticker: string, quantity?: number, clientOrderId?: string) =>
+      request<OrderApproveResult>("/api/orders/approve", {
+        method: "POST",
+        body: JSON.stringify({
+          ticker,
+          ...(quantity != null ? { quantity } : {}),
+          ...(clientOrderId != null ? { client_order_id: clientOrderId } : {}),
+        }),
+      }),
+    /**
+     * Close (fully or partially) a paper position. Allowed even while global
+     * trading is paused — closing reduces risk (§18 risk-priority).
+     */
+    close: (ticker: string, quantity?: number, reason?: string) =>
+      request<OrderCloseResult>("/api/orders/close", {
+        method: "POST",
+        body: JSON.stringify({
+          ticker,
+          ...(quantity != null ? { quantity } : {}),
+          ...(reason != null ? { reason } : {}),
+        }),
+      }),
+  },
+  positions: {
+    list: (status?: PositionStatus | "ALL") =>
+      request<PositionRow[]>(`/api/positions${status ? `?status=${status}` : ""}`),
+    checkExits: () =>
+      request<CheckExitsResult>("/api/positions/check-exits", { method: "POST" }),
   },
   audit: {
     list: (entityId?: string) =>
