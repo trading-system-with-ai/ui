@@ -96,6 +96,106 @@ export interface SymbolAnalysis {
   series: AnalysisSeries;
 }
 
+/* ---------------------------------------------------------------- backtests */
+
+export interface BacktestParams {
+  position_pct: number;
+  commission_per_share: number;
+  slippage_bps: number;
+  entry_edge_threshold: number;
+  exit_edge_threshold: number;
+  atr_trail_k: number;
+  time_stop_bars: number;
+  min_move_atr: number;
+  oos_split: number;
+  warmup_bars: number;
+}
+
+export interface BacktestSegmentMetrics {
+  total_return_pct: number;
+  cagr_pct: number | null;
+  sharpe: number | null;
+  sortino: number | null;
+  max_drawdown_pct: number;
+  win_rate: number | null;
+  profit_factor: number | null;
+  expectancy_pct: number | null;
+  avg_trade_pct: number | null;
+  avg_hold_bars: number | null;
+  num_trades: number;
+  exposure_pct: number;
+}
+
+export interface BacktestTrade {
+  entry_date: string;
+  entry_price: number;
+  exit_date: string | null;
+  exit_price: number | null;
+  bars_held: number;
+  return_pct: number;
+  entry_reason: string;
+  exit_reason: string;
+}
+
+export interface BacktestEquityCurve {
+  dates: string[];
+  equity: number[];
+  drawdown: number[];
+}
+
+export type BacktestStatus = "COMPLETED" | "FAILED";
+
+export interface BacktestRecord {
+  id: number;
+  ticker: string;
+  created_at: string;
+  status: BacktestStatus;
+  params: BacktestParams;
+  error: string | null;
+  oos_start_date: string | null;
+  metrics: {
+    full: BacktestSegmentMetrics;
+    in_sample: BacktestSegmentMetrics;
+    out_of_sample: BacktestSegmentMetrics;
+  };
+  trades: BacktestTrade[];
+  equity_curve: BacktestEquityCurve;
+}
+
+export interface BacktestSummary {
+  id: number;
+  ticker: string;
+  created_at: string;
+  status: BacktestStatus;
+  num_trades: number;
+  total_return_pct: number;
+  profit_factor: number | null;
+  oos_start_date: string | null;
+}
+
+/* ---------------------------------------------------------------- watchlist overview */
+
+export type OpportunityStatus =
+  | "NO_SIGNAL"
+  | "WATCH"
+  | "SETUP_FORMING"
+  | "ENTRY_READY"
+  | "DATA_ISSUE"
+  | "BACKTEST_FAILED";
+
+export interface WatchlistOverviewItem {
+  ticker: string;
+  price: number | null;
+  regime: string | null;
+  bull_score: number | null;
+  bear_score: number | null;
+  directional_edge: number | null;
+  bias: "BULL" | "BEAR" | "NEUTRAL" | null;
+  opportunity_status: OpportunityStatus | null;
+  backtest_status: string | null;
+  last_backtest_id: number | null;
+}
+
 export interface AuditEvent {
   id: number;
   ts: string;

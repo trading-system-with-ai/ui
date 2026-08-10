@@ -4,7 +4,31 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 3: Symbol Analysis page
+## 2026-08-10 — Iteration 4: Backtests page v1 + watchlist research columns
+
+**Built:**
+- `app/backtests/page.tsx` (placeholder replaced): config panel with grouped
+  editable params (Fills & Costs / Entry & Exit / Data Split) prefilled with
+  engine defaults; run history with newest-first summaries; results with the
+  §35 metrics table in three labeled columns — In-Sample | Out-of-Sample (amber,
+  from oos_start_date) | Full; equity + drawdown SVG charts with the OOS region
+  shaded and divider-marked (dataviz-skill palette, crosshair + keyboard);
+  trades table showing entry_reason / exit_reason for every trade (§38);
+  "LONG STOCK ONLY (V1)" scope note + stub-data source note (§39).
+  Honors ?id= and ?ticker= (Suspense-wrapped useSearchParams per Next 15).
+- Watchlist table upgraded via `/api/watchlist/overview`: Price / Regime /
+  Edge (signed, colored) / Bias / Opportunity badge (ENTRY_READY green,
+  SETUP_FORMING amber, DATA_ISSUE red, WATCH/NO_SIGNAL dim) / Backtest link.
+- Symbol page Backtest tab enabled: latest run summary (full + OOS) + link.
+- `lib/backtest-metrics.ts` shared formatting; backtest/overview types + API.
+
+**Verified:** typecheck + build clean (verifier also cleaned stale macOS
+"file 2.ts" duplicates from .next/types that broke typecheck); all eight
+static UX checks passed.
+
+**Next (iteration 5):**
+1. Risk page v1 (NAV/cash/heat/limits + risk decisions) once backend lands.
+2. Order preview flow UI (gate-chain visualization).
 
 **Built:**
 - `app/watchlist/[ticker]/page.tsx` — Symbol Analysis (plan §33): tabs

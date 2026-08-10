@@ -1,10 +1,14 @@
 import type {
   AuditEvent,
+  BacktestParams,
+  BacktestRecord,
+  BacktestSummary,
   MarketOverview,
   SymbolAnalysis,
   TradingPoolItem,
   TradingStatus,
   WatchlistItem,
+  WatchlistOverviewItem,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -50,6 +54,22 @@ export const api = {
       request<void>(`/api/watchlist/${ticker}`, { method: "DELETE" }),
     analysis: (ticker: string) =>
       request<SymbolAnalysis>(`/api/watchlist/${encodeURIComponent(ticker)}/analysis`),
+    overview: () => request<WatchlistOverviewItem[]>("/api/watchlist/overview"),
+  },
+  backtests: {
+    run: (ticker: string, params?: Partial<BacktestParams>) =>
+      request<BacktestRecord>("/api/backtests", {
+        method: "POST",
+        body: JSON.stringify(params ? { ticker, params } : { ticker }),
+      }),
+    list: (ticker?: string, limit?: number) => {
+      const qs = new URLSearchParams();
+      if (ticker) qs.set("ticker", ticker);
+      if (limit != null) qs.set("limit", String(limit));
+      const q = qs.toString();
+      return request<BacktestSummary[]>(`/api/backtests${q ? `?${q}` : ""}`);
+    },
+    get: (id: number) => request<BacktestRecord>(`/api/backtests/${id}`),
   },
   tradingPool: {
     list: () => request<TradingPoolItem[]>("/api/trading-pool"),

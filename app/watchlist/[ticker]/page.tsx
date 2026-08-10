@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { METRIC_ROWS } from "@/lib/backtest-metrics";
 import type { AnalysisIndicators, AnalysisSeries, SymbolAnalysis } from "@/lib/types";
 
 /* ---------------------------------------------------------------- tabs */
 
-type ActiveTab = "overview" | "technical" | "audit";
+type ActiveTab = "overview" | "technical" | "backtest" | "audit";
 
 const TABS: { id: string; label: string; phase?: string }[] = [
   { id: "overview", label: "Overview" },
@@ -17,7 +18,7 @@ const TABS: { id: string; label: string; phase?: string }[] = [
   { id: "technical", label: "Technical" },
   { id: "options", label: "Options", phase: "Phase 1" },
   { id: "news", label: "News", phase: "Phase 8" },
-  { id: "backtest", label: "Backtest", phase: "Phase 3" },
+  { id: "backtest", label: "Backtest" },
   { id: "trade-plan", label: "Trade Plan", phase: "Phase 4" },
   { id: "audit", label: "Audit" },
 ];
@@ -429,6 +430,100 @@ function TechnicalTab({ analysis }: { analysis: SymbolAnalysis }) {
   );
 }
 
+function BacktestTab({ ticker }: { ticker: string }) {
+  const list = useQuery({
+    queryKey: ["backtests", ticker],
+    queryFn: () => api.backtests.list(ticker),
+  });
+  const latest =
+    list.data && list.data.length > 0
+      ? [...list.data].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+      : undefined;
+  const record = useQuery({
+    queryKey: ["backtest", latest?.id],
+    queryFn: () => api.backtests.get(latest!.id),
+    enabled: latest != null,
+    staleTime: Infinity,
+    refetchInterval: false,
+  });
+
+  return (
+    <div className="panel">
+      <h2>Latest backtest</h2>
+      {list.isPending ? (
+        <p className="empty">Loading backtests for {ticker}…</p>
+      ) : list.isError ? (
+        <p className="error">Backtests unavailable: {list.error.message}</p>
+      ) : !latest ? (
+        <p className="empty">
+          No backtests for {ticker} yet.{" "}
+          <Link
+            href={`/backtests?ticker=${encodeURIComponent(ticker)}`}
+            style={{ color: "var(--accent)" }}
+          >
+            Run one on the Backtests page →
+          </Link>
+        </p>
+      ) : (
+        <>
+          <p className="datasource" style={{ marginBottom: 12 }}>
+            run #{latest.id} · {new Date(latest.created_at).toLocaleString()} ·{" "}
+            <span className={`badge ${latest.status === "COMPLETED" ? "green" : "red"}`}>
+              {latest.status}
+            </span>
+            {latest.oos_start_date && <> · out-of-sample from {latest.oos_start_date}</>}
+          </p>
+          {record.data && record.data.status === "COMPLETED" ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th style={{ textAlign: "right" }}>Full</th>
+                  <th className="oos-col" style={{ textAlign: "right" }}>
+                    Out-of-Sample
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {METRIC_ROWS.map((r) => (
+                  <tr key={r.key}>
+                    <td>{r.label}</td>
+                    <td style={{ textAlign: "right" }}>{r.fmt(record.data.metrics.full[r.key])}</td>
+                    <td className="oos-col" style={{ textAlign: "right" }}>
+                      {r.fmt(record.data.metrics.out_of_sample[r.key])}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : record.data && record.data.status === "FAILED" ? (
+            <p className="error">
+              Latest backtest failed: {record.data.error ?? "unknown error"}
+            </p>
+          ) : record.isError ? (
+            <p className="error">Run #{latest.id} unavailable: {record.error.message}</p>
+          ) : (
+            <p className="empty">Loading run #{latest.id}…</p>
+          )}
+          <p style={{ marginTop: 12 }}>
+            <span className="row">
+              <Link href={`/backtests?ticker=${encodeURIComponent(ticker)}`} className="btn">
+                Run / view backtests
+              </Link>
+              <Link href={`/backtests?id=${latest.id}`} className="btn">
+                Full results →
+              </Link>
+            </span>
+          </p>
+        </>
+      )}
+      <p className="datasource" style={{ marginTop: 12, marginBottom: 0 }}>
+        scope: LONG STOCK ONLY (V1) · computed from stored stub/sample bars
+      </p>
+    </div>
+  );
+}
+
 function AuditTab({ ticker }: { ticker: string }) {
   const audit = useQuery({
     queryKey: ["audit", ticker],
@@ -548,6 +643,8 @@ export default function SymbolAnalysisPage() {
 
       {tab === "audit" ? (
         <AuditTab ticker={ticker} />
+      ) : tab === "backtest" ? (
+        <BacktestTab ticker={ticker} />
       ) : analysis.isPending ? (
         <div className="panel">
           <p className="empty">Loading analysis for {ticker}…</p>
