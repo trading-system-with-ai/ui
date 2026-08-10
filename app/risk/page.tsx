@@ -4,7 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { DECISION_BADGE, HEAT_BADGE, fmtPct, fmtUsd, utilizationSeverity } from "@/lib/risk-format";
-import type { AuditEvent, PortfolioRisk, RiskDecision, RiskLimits } from "@/lib/types";
+import type {
+  AuditEvent,
+  PortfolioRisk,
+  RiskDecision,
+  RiskLimits,
+  StrategyHealth,
+  StrategyHealthStatus,
+} from "@/lib/types";
 
 /* ---------------------------------------------------------------- limits copy */
 
@@ -249,6 +256,120 @@ function LimitsPanel({ d }: { d: PortfolioRisk }) {
   );
 }
 
+/* ---------------------------------------------------------------- strategy health */
+
+const HEALTH_BADGE: Record<StrategyHealthStatus, "dim" | "green" | "amber" | "red"> = {
+  INSUFFICIENT_DATA: "dim",
+  HEALTHY: "green",
+  WARNING: "amber",
+  PAUSE_RECOMMENDED: "red",
+};
+
+/** null → em dash, otherwise fmtUsd (the API sends null where a stat is undefined). */
+function usdOrDash(v: number | null): string {
+  return v == null ? "—" : fmtUsd(v);
+}
+
+function pnlColor(v: number): string | undefined {
+  if (v > 0) return "var(--green)";
+  if (v < 0) return "var(--red)";
+  return undefined;
+}
+
+function StrategyHealthPanel({
+  health,
+  errorMessage,
+}: {
+  health: StrategyHealth | undefined;
+  errorMessage?: string;
+}) {
+  return (
+    <div className="panel">
+      <h2>Strategy Health</h2>
+      {errorMessage !== undefined ? (
+        <p className="error">Strategy health unavailable: {errorMessage}</p>
+      ) : health === undefined ? (
+        <p className="empty">Loading strategy health…</p>
+      ) : (
+        <>
+          <div className="row" style={{ marginBottom: 12, flexWrap: "wrap" }}>
+            <span className={`badge ${HEALTH_BADGE[health.status]}`}>
+              {health.status.replace(/_/g, " ")}
+            </span>
+            <span style={{ color: "var(--text-dim)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
+              {health.trade_count} closed trade{health.trade_count === 1 ? "" : "s"} of{" "}
+              {health.min_trades_for_judgement} needed for judgement · as of{" "}
+              {new Date(health.as_of).toLocaleString()}
+            </span>
+          </div>
+          <div className="kv" style={{ marginBottom: 12 }}>
+            <div>
+              <div className="k">Win rate</div>
+              {/* win_rate is a FRACTION of closed trades (0.55 = 55%). */}
+              <div className="v">{health.win_rate == null ? "—" : fmtPct(health.win_rate)}</div>
+            </div>
+            <div>
+              <div className="k">Profit factor</div>
+              <div className="v">
+                {health.profit_factor == null ? "—" : health.profit_factor.toFixed(2)}
+              </div>
+            </div>
+            <div>
+              <div className="k">Expectancy / trade</div>
+              <div className="v">{usdOrDash(health.expectancy_usd)}</div>
+            </div>
+            <div>
+              <div className="k">Avg win</div>
+              <div className="v">{usdOrDash(health.avg_win_usd)}</div>
+            </div>
+            <div>
+              <div className="k">Avg loss</div>
+              <div className="v">{usdOrDash(health.avg_loss_usd)}</div>
+            </div>
+            <div>
+              <div className="k">Gross profit</div>
+              <div className="v" style={{ color: "var(--green)" }}>
+                {fmtUsd(health.gross_profit_usd)}
+              </div>
+            </div>
+            <div>
+              <div className="k">Gross loss</div>
+              <div className="v" style={{ color: "var(--red)" }}>
+                {fmtUsd(health.gross_loss_usd)}
+              </div>
+            </div>
+            <div>
+              <div className="k">Cumulative P&amp;L</div>
+              <div className="v" style={{ color: pnlColor(health.cumulative_pnl_usd) }}>
+                {fmtUsd(health.cumulative_pnl_usd)}
+              </div>
+            </div>
+            <div>
+              <div className="k">Max drawdown</div>
+              <div className="v">{fmtUsd(health.max_drawdown_usd)}</div>
+            </div>
+            <div>
+              <div className="k">Current drawdown</div>
+              <div className="v">{fmtUsd(health.current_drawdown_usd)}</div>
+            </div>
+          </div>
+          {health.explanations.length > 0 && (
+            <ul className="why-list" style={{ marginBottom: 12 }}>
+              {health.explanations.map((x, i) => (
+                <li key={i}>{x}</li>
+              ))}
+            </ul>
+          )}
+          <p style={{ color: "var(--text-dim)", fontSize: 12 }}>
+            Rolling stats over closed paper trades — pause automation arrives in a later
+            phase.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function RiskDecisionsPanel({
   events,
   errorMessage,
@@ -313,6 +434,7 @@ function RiskDecisionsPanel({
 export default function RiskPage() {
   const risk = useQuery({ queryKey: ["portfolio-risk"], queryFn: api.portfolio.risk });
   const audit = useQuery({ queryKey: ["audit"], queryFn: () => api.audit.list() });
+  const health = useQuery({ queryKey: ["strategy-health"], queryFn: api.health.strategy });
 
   return (
     <>
@@ -341,6 +463,11 @@ export default function RiskPage() {
           <LimitsPanel d={risk.data} />
         </>
       )}
+
+      <StrategyHealthPanel
+        health={health.data}
+        errorMessage={health.isError ? health.error.message : undefined}
+      />
 
       <RiskDecisionsPanel
         events={audit.data}

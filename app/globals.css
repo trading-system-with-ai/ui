@@ -344,3 +344,57 @@ th.oos-col { color: var(--amber); }
 .why-list { margin: 0; padding-left: 18px; }
 .why-list li { margin-bottom: 6px; font-size: 13px; }
 .none { color: var(--text-dim); font-style: italic; }
+
+/* ------------------------------------------------ recommendations */
+
+.rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.rec-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rec-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.rec-ticker { font-size: 20px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
+.rec-company { color: var(--text-dim); font-size: 12px; flex: 1; min-width: 0; }
+.rec-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rec-ts { color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); }
+.rec-summary { font-size: 13px; }
+.rec-codes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.score-row { display: flex; align-items: center; gap: 8px; }
+.score-label {
+  width: 104px;
+  flex-shrink: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.score-track { flex: 1; height: 6px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+.score-fill { height: 100%; background: var(--accent); border-radius: 3px; min-width: 1px; }
+.score-val { width: 38px; flex-shrink: 0; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+
+.rec-evidence { border-top: 1px solid var(--border); padding-top: 10px; }
+.ev-item { margin-bottom: 10px; }
+.ev-item:last-child { margin-bottom: 0; }
+.ev-source { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.ev-ts { color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); margin-left: 8px; }
+.ev-snippet { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.ev-note { color: var(--text-dim); font-size: 11px; font-style: italic; margin-bottom: 8px; }
+
+.rec-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.rec-actions .spacer { margin-left: auto; }
+
+.skip-details summary { cursor: pointer; font-weight: 400; font-size: 12px; }
+.skip-details ul { margin: 6px 0 0; padding-left: 18px; font-weight: 400; font-size: 12px; }

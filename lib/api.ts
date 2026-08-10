@@ -11,6 +11,11 @@ import type {
   PortfolioRisk,
   PositionRow,
   PositionStatus,
+  Recommendation,
+  RecommendationPromoteResult,
+  RecommendationRefreshResult,
+  RecommendationStatus,
+  StrategyHealth,
   SymbolAnalysis,
   TradingPoolItem,
   TradingStatus,
@@ -161,5 +166,32 @@ export const api = {
       request<AuditEvent[]>(
         `/api/audit${entityId ? `?entity_id=${encodeURIComponent(entityId)}` : ""}`,
       ),
+  },
+  recommendations: {
+    /** Server default is PENDING when no status is given. */
+    list: (status?: RecommendationStatus | "ALL") =>
+      request<Recommendation[]>(
+        `/api/recommendations${status ? `?status=${status}` : ""}`,
+      ),
+    /** Generate from the configured provider; skips tickers already on the Watchlist or already PENDING. */
+    refresh: () =>
+      request<RecommendationRefreshResult>("/api/recommendations/refresh", {
+        method: "POST",
+      }),
+    dismiss: (id: number) =>
+      request<Recommendation>(`/api/recommendations/${id}/dismiss`, {
+        method: "POST",
+      }),
+    /**
+     * The ONLY recommendation→watchlist path — an explicit USER action. 409 if
+     * the ticker is already on the watchlist or the row is not PENDING.
+     */
+    promote: (id: number) =>
+      request<RecommendationPromoteResult>(`/api/recommendations/${id}/promote`, {
+        method: "POST",
+      }),
+  },
+  health: {
+    strategy: () => request<StrategyHealth>("/api/health/strategy"),
   },
 };

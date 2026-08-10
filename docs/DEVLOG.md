@@ -4,7 +4,29 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 6: Positions page v1 + paper order approve flow
+## 2026-08-10 — Iteration 7: Recommendations page + Strategy Health panel
+
+**Built:**
+- `app/recommendations/page.tsx` (§30, placeholder replaced): card grid with
+  ticker/company, sentiment badge (documented ±0.15 thresholds), catalyst +
+  horizon chips, summary, reason-code chips, impact/novelty/reliability score
+  meters (ARIA), View Evidence expansion (sources with published_at + §20.3
+  note), status filter tabs, Generate button with created/skipped result
+  banner. **No trade action exists on this page by design** — the only
+  mutations are refresh/dismiss/promote; permanent governance subtitle
+  "The LLM proposes — you decide."
+- Add to Watchlist confirm dialog frames the click as the explicit user
+  approval step; success invalidates watchlist/recommendations/audit queries.
+- Risk page gained the Strategy Health panel (§19): status badge, trade count
+  vs minimum sample, win rate / profit factor / expectancy / gross P&L /
+  drawdowns (null-safe), explanations list, "pause automation later" note.
+
+**Verified:** typecheck + build clean first run; verifier grep-confirmed zero
+trade/order/execute verbs among the page's actions and all §30 fields present.
+
+**Next (iteration 8):**
+1. Symbol page Price tab (candles/volume) once backend serves OHLC series.
+2. Activity page action-type filter chips.
 
 **Built:**
 - `app/positions/page.tsx` (§37, placeholder replaced): open-positions table

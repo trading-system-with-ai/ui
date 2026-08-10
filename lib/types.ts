@@ -394,6 +394,91 @@ export interface CheckExitsResult {
   held: { ticker: string; reasons: string[] }[];
 }
 
+/* ---------------------------------------------------------------- recommendations */
+
+export type RecommendationStatus = "PENDING" | "DISMISSED" | "PROMOTED";
+
+export interface RecommendationEvidence {
+  source: string;
+  /** Always predates the recommendation's `ts` — no hindsight sourcing (§20.3). */
+  published_at: string;
+  snippet: string;
+}
+
+/**
+ * An LLM-proposed candidate (§30). Governance: the LLM only PROPOSES — a row
+ * can reach the Watchlist solely through the explicit user promote action, and
+ * there is never a direct recommendation→trade path.
+ */
+export interface Recommendation {
+  id: number;
+  ts: string;
+  ticker: string;
+  company: string | null;
+  /** [-1, 1] — negative = bearish read of the catalyst. */
+  sentiment: number;
+  /** [0, 1] */
+  impact: number;
+  /** [0, 1] */
+  novelty: number;
+  /** [0, 1] */
+  source_reliability: number;
+  /** e.g. "1-5d" */
+  horizon: string;
+  catalyst_type: string;
+  reason_codes: string[];
+  summary: string;
+  evidence: RecommendationEvidence[];
+  status: RecommendationStatus;
+}
+
+export interface RecommendationSkip {
+  ticker: string;
+  reason: string;
+}
+
+export interface RecommendationRefreshResult {
+  created: Recommendation[];
+  skipped: RecommendationSkip[];
+}
+
+/** POST /api/recommendations/{id}/promote — the ONLY recommendation→watchlist path. */
+export interface RecommendationPromoteResult {
+  recommendation: Recommendation;
+  watchlist_ticker: string;
+}
+
+/* ---------------------------------------------------------------- strategy health */
+
+export type StrategyHealthStatus =
+  | "INSUFFICIENT_DATA"
+  | "HEALTHY"
+  | "WARNING"
+  | "PAUSE_RECOMMENDED";
+
+/**
+ * §19 rolling stats over closed paper trades. Ratio fields are null where
+ * undefined (e.g. no losses yet → profit_factor null) — never NaN/Infinity.
+ */
+export interface StrategyHealth {
+  as_of: string;
+  trade_count: number;
+  min_trades_for_judgement: number;
+  /** Fraction of closed trades that won (0.55 = 55%), null below judgement threshold. */
+  win_rate: number | null;
+  profit_factor: number | null;
+  expectancy_usd: number | null;
+  avg_win_usd: number | null;
+  avg_loss_usd: number | null;
+  gross_profit_usd: number;
+  gross_loss_usd: number;
+  cumulative_pnl_usd: number;
+  max_drawdown_usd: number;
+  current_drawdown_usd: number;
+  status: StrategyHealthStatus;
+  explanations: string[];
+}
+
 export interface AuditEvent {
   id: number;
   ts: string;
