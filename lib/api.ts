@@ -1,4 +1,10 @@
-import type { AuditEvent, TradingPoolItem, WatchlistItem } from "./types";
+import type {
+  AuditEvent,
+  MarketOverview,
+  TradingPoolItem,
+  TradingStatus,
+  WatchlistItem,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
@@ -46,6 +52,19 @@ export const api = {
       }),
     remove: (ticker: string) =>
       request<void>(`/api/trading-pool/${ticker}`, { method: "DELETE" }),
+  },
+  trading: {
+    status: () => request<TradingStatus>("/api/trading/status"),
+    pause: (reason: string) =>
+      request<TradingStatus>("/api/trading/pause", {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
+    resume: () =>
+      request<TradingStatus>("/api/trading/resume", { method: "POST" }),
+  },
+  market: {
+    overview: () => request<MarketOverview>("/api/market/overview"),
   },
   audit: {
     list: (entityId?: string) =>

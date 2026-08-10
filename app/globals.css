@@ -128,3 +128,4 @@ input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .badge.user { background: rgba(68, 147, 248, 0.15); color: var(--accent); }
 .badge.system { background: rgba(139, 148, 158, 0.15); color: var(--text-dim); }
 .badge.llm { background: rgba(210, 153, 34, 0.15); color: var(--amber); }
+.badge.stale { background: rgba(210, 153, 34, 0.15); color: var(--amber); }

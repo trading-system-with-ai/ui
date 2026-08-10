@@ -13,6 +13,28 @@ export interface TradingPoolItem {
   created_at: string;
 }
 
+export interface TradingStatus {
+  trading_enabled: boolean;
+  reason: string;
+  updated_by: string;
+  updated_at: string | null;
+}
+
+export interface IndexQuote {
+  symbol: string;
+  price: number;
+  change_pct: number;
+  ts: string;
+}
+
+export interface MarketOverview {
+  provider: string;
+  as_of: string;
+  stale: boolean;
+  market_regime: string;
+  indices: IndexQuote[];
+}
+
 export interface AuditEvent {
   id: number;
   ts: string;

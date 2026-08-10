@@ -8,6 +8,10 @@ export default function TradingPoolPage() {
   const qc = useQueryClient();
   const [error, setError] = useState("");
   const pool = useQuery({ queryKey: ["trading-pool"], queryFn: api.tradingPool.list });
+  const status = useQuery({ queryKey: ["trading-status"], queryFn: api.trading.status });
+
+  // Safety: unknown global status is always presented as PAUSED.
+  const globalEnabled = status.data?.trading_enabled === true;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["trading-pool"] });
@@ -59,6 +63,24 @@ export default function TradingPoolPage() {
           <p className="error">{error}</p>
         </div>
       )}
+
+      <p
+        style={{
+          fontSize: 13,
+          marginBottom: 8,
+          color: globalEnabled ? "var(--green)" : "var(--amber)",
+        }}
+      >
+        {globalEnabled
+          ? "Global kill switch: TRADING ENABLED — per-symbol settings below apply."
+          : `Global kill switch: TRADING PAUSED${
+              status.data
+                ? status.data.reason
+                  ? ` (${status.data.reason})`
+                  : ""
+                : " (status unavailable)"
+            }. No symbol will trade while globally paused, regardless of per-symbol enablement below.`}
+      </p>
 
       <div className="panel">
         <h2>Authorized Symbols ({pool.data?.length ?? 0})</h2>
