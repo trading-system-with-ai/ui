@@ -4,15 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
-
-const OPPORTUNITY_BADGE: Record<string, string> = {
-  ENTRY_READY: "green",
-  SETUP_FORMING: "amber",
-  DATA_ISSUE: "red",
-  BACKTEST_FAILED: "red",
-  WATCH: "dim",
-  NO_SIGNAL: "dim",
-};
+import { OPPORTUNITY_BADGE } from "@/lib/risk-format";
 
 function backtestBadgeClass(status: string): string {
   const s = status.toUpperCase();

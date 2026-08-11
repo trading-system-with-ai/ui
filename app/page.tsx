@@ -8,9 +8,45 @@ import {
   HEAT_BADGE,
   INSTRUMENT_BADGE,
   INSTRUMENT_SHORT,
+  OPPORTUNITY_BADGE,
   fmtPct,
   fmtUsd,
 } from "@/lib/risk-format";
+import type { WatchlistOverviewItem } from "@/lib/types";
+
+/**
+ * Sort rank per opportunity status — most actionable first. Anything not
+ * listed (BACKTEST_FAILED, null, unknown values) sinks below DATA_ISSUE.
+ */
+const OPPORTUNITY_ORDER: Record<string, number> = {
+  ENTRY_READY: 0,
+  SETUP_FORMING: 1,
+  WATCH: 2,
+  NO_SIGNAL: 3,
+  DATA_ISSUE: 4,
+};
+
+function opportunityRank(status: string | null): number {
+  return (status != null ? OPPORTUNITY_ORDER[status] : undefined) ?? 5;
+}
+
+/** Top rows: opportunity first, then |directional_edge| descending. */
+function topOpportunities(rows: WatchlistOverviewItem[], n: number): WatchlistOverviewItem[] {
+  return [...rows]
+    .sort((a, b) => {
+      const byStatus =
+        opportunityRank(a.opportunity_status) - opportunityRank(b.opportunity_status);
+      if (byStatus !== 0) return byStatus;
+      return Math.abs(b.directional_edge ?? 0) - Math.abs(a.directional_edge ?? 0);
+    })
+    .slice(0, n);
+}
+
+function edgeColor(v: number): string {
+  if (v > 0) return "var(--green)";
+  if (v < 0) return "var(--red)";
+  return "var(--text-dim)";
+}
 
 export default function Dashboard() {
   const qc = useQueryClient();
@@ -25,6 +61,10 @@ export default function Dashboard() {
   const positions = useQuery({
     queryKey: ["positions", "OPEN"],
     queryFn: () => api.positions.list("OPEN"),
+  });
+  const wlOverview = useQuery({
+    queryKey: ["watchlist-overview"],
+    queryFn: api.watchlist.overview,
   });
 
   const invalidateStatus = () => {
@@ -287,11 +327,96 @@ export default function Dashboard() {
       </div>
 
       <div className="panel">
-        <h2>Top Watchlist Opportunities</h2>
-        <p className="empty">
-          Opportunity scoring arrives with the Feature & Signal engines (Phase 2). Add
-          symbols on the Watchlist page to begin the data lifecycle.
-        </p>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 style={{ marginBottom: 0 }}>Top Watchlist Opportunities</h2>
+          <Link href="/watchlist" style={{ color: "var(--accent)", fontSize: 12 }}>
+            Full watchlist →
+          </Link>
+        </div>
+        {wlOverview.data ? (
+          wlOverview.data.length > 0 ? (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th className="num">Price</th>
+                    <th>Regime</th>
+                    <th className="num">Edge</th>
+                    <th>Bias</th>
+                    <th>Opportunity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topOpportunities(wlOverview.data, 6).map((o) => (
+                    <tr key={o.ticker}>
+                      <td>
+                        <Link
+                          href={`/watchlist/${encodeURIComponent(o.ticker)}`}
+                          className="ticker"
+                        >
+                          {o.ticker}
+                        </Link>
+                      </td>
+                      <td className="num">
+                        {o.price != null ? (
+                          `$${o.price.toFixed(2)}`
+                        ) : (
+                          <span style={{ color: "var(--text-dim)" }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12 }}>
+                        {o.regime ?? <span style={{ color: "var(--text-dim)" }}>—</span>}
+                      </td>
+                      <td className="num">
+                        {o.directional_edge != null ? (
+                          <span style={{ color: edgeColor(o.directional_edge) }}>
+                            {o.directional_edge > 0 ? "+" : ""}
+                            {o.directional_edge.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-dim)" }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {o.bias ? (
+                          <span className={`badge ${o.bias.toLowerCase()}`}>{o.bias}</span>
+                        ) : (
+                          <span style={{ color: "var(--text-dim)" }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {o.opportunity_status ? (
+                          <span
+                            className={`badge ${OPPORTUNITY_BADGE[o.opportunity_status] ?? "dim"}`}
+                          >
+                            {o.opportunity_status.replace(/_/g, " ")}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-dim)" }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="empty">
+              Watchlist is empty —{" "}
+              <Link href="/watchlist" style={{ color: "var(--accent)" }}>
+                add symbols on the Watchlist page
+              </Link>{" "}
+              to begin the data lifecycle.
+            </p>
+          )
+        ) : (
+          <p className="empty">
+            {wlOverview.isError
+              ? "Watchlist overview unavailable."
+              : "Loading watchlist opportunities…"}
+          </p>
+        )}
       </div>
 
       <div className="panel">

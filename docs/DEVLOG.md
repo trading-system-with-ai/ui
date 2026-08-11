@@ -4,7 +4,25 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 11: Portfolio Greeks panel, vol-targeting line, bucket kinds
+## 2026-08-10 — Iteration 12: Settings page v1 + Dashboard opportunities panel
+
+**Built:**
+- Settings (§28) placeholder replaced: ten grouped read-only panels each with
+  a plan-section chip — environment/providers (amber STUB flags), kill switch
+  state, §5 permissions as ALLOWED/BLOCKED badges (explicit "Short stock:
+  BLOCKED — no flag exists" row), §12 risk limits with per-regime cash-floor
+  sub-table and buckets, §11 exit params, §9 selector, §14 vol targeting,
+  §6 signal params (collapsed), §20 backtest defaults, paper fill model.
+  Prominent "read-only — editing arrives later" note.
+- Dashboard "Top Watchlist Opportunities" placeholder replaced: top-6 rows
+  sorted ENTRY_READY > SETUP_FORMING > WATCH > NO_SIGNAL > DATA_ISSUE then
+  |edge|, with ticker links, colored edge, bias/opportunity badges;
+  OPPORTUNITY_BADGE hoisted to lib/risk-format.ts and shared with Watchlist.
+
+**Verified:** typecheck + build clean; verifier passed all checks zero-fix.
+
+**Status note:** every §28 navigation section now has real content — no
+placeholders remain in the app.
 
 **Built:**
 - Risk page Portfolio Greeks panel (§36/§16): Net Delta (equivalent shares),

@@ -699,6 +699,164 @@ export interface StrategyHealth {
   explanations: string[];
 }
 
+/* ---------------------------------------------------------------- platform config (§28, §44 rule 2) */
+
+/**
+ * §5 account permission flags. Short stock deliberately has NO flag — it
+ * does not exist in this system, so the UI renders it as a hardcoded
+ * BLOCKED row rather than a configurable value.
+ */
+export interface AccountPermissions {
+  long_stock: boolean;
+  long_call: boolean;
+  long_put: boolean;
+  defined_risk_spreads: boolean;
+}
+
+/**
+ * §12/§13/§16 risk thresholds as the risk engine actually consumes them
+ * (dataclasses.asdict of RiskLimits). All budget/cap/heat values are
+ * FRACTIONS of NAV; strength_* are |edge| thresholds on the 0-100 scale.
+ * Distinct from the PortfolioRisk `RiskLimits` summary type above.
+ */
+export interface ConfigRiskLimits {
+  budget_weak: number;
+  budget_moderate: number;
+  budget_strong: number;
+  budget_very_strong: number;
+  abs_max_trade_risk: number;
+  single_name_risk: number;
+  single_name_capital: number;
+  bucket_risk: number;
+  heat_elevated: number;
+  heat_high: number;
+  heat_reject: number;
+  strength_weak: number;
+  strength_moderate: number;
+  strength_strong: number;
+  strength_very_strong: number;
+  /** Regime name -> minimum cash fraction of NAV (§13). */
+  cash_floors: Record<string, number>;
+  /** Bucket name -> member tickers sharing one risk cap (§12.4). */
+  correlation_buckets: Record<string, string[]>;
+  max_delta_notional_pct_nav: number;
+  max_net_theta_pct_nav: number;
+  max_net_vega_pct_nav: number;
+}
+
+/** §11 exit-engine parameters (ExitParams dataclass). */
+export interface ConfigExitParams {
+  exit_edge_threshold: number;
+  atr_trail_k: number;
+  time_stop_bars: number;
+  min_move_atr: number;
+  atr_period: number;
+  /** Fraction of entry premium (0.45 = 45%) — options only (§11.3). */
+  premium_hard_stop_pct: number;
+  /** DTE at or below which DTE_EXIT fires — options only (§11.7). */
+  dte_exit_threshold: number;
+}
+
+/** §9 contract-selector thresholds and ranking weights (SelectorParams). */
+export interface ConfigSelectorParams {
+  dte_min: number;
+  dte_max: number;
+  abs_delta_min: number;
+  abs_delta_max: number;
+  min_open_interest: number;
+  min_volume: number;
+  /** (ask - bid) / mid, as a fraction. */
+  max_spread_pct: number;
+  /** Max |theta| / mid per calendar day, as a fraction. */
+  max_theta_premium_pct: number;
+  top_n: number;
+  w_liquidity: number;
+  w_theta: number;
+  w_delta_fit: number;
+}
+
+/** §14 volatility-targeting parameters (VolTargetParams). */
+export interface ConfigVolTargetParams {
+  /** Annualized target vol (fraction, 0.12 = 12%). */
+  target_vol: number;
+  max_multiplier: number;
+  min_multiplier: number;
+}
+
+/** §6.1 regime-classifier parameters (RegimeParams). */
+export interface ConfigRegimeParams {
+  sma_fast: number;
+  sma_mid: number;
+  sma_slow: number;
+  slope_lookback: number;
+  atr_period: number;
+  /** ATR / close ratio (fraction) above which the regime is forced to TRANSITION. */
+  extreme_atr_pct: number;
+}
+
+/** §6.2 directional-scorer parameters (DirectionalParams; tuples arrive as arrays). */
+export interface ConfigDirectionalParams {
+  sma_fast: number;
+  sma_mid: number;
+  sma_slow: number;
+  slope_lookback: number;
+  macd_fast: number;
+  macd_slow: number;
+  macd_signal: number;
+  rsi_period: number;
+  /** Inclusive (lo, hi) RSI band counted as bull continuation. */
+  rsi_bull_zone: [number, number];
+  rsi_bear_zone: [number, number];
+  pivot_window: number;
+  volume_sma_period: number;
+  bias_threshold: number;
+  weight_sma_fast: number;
+  weight_sma_mid: number;
+  weight_sma_slow: number;
+  weight_sma_slope: number;
+  weight_macd_cross: number;
+  weight_macd_zero: number;
+  weight_rsi_zone: number;
+  weight_structure: number;
+  weight_volume: number;
+}
+
+/** Paper fill-model constants shared with the paper order executor. */
+export interface PaperTradingConfig {
+  initial_cash: number;
+  slippage_bps: number;
+  commission_per_share: number;
+  commission_per_contract: number;
+}
+
+/**
+ * GET /api/config — read-only snapshot of the configuration the engines are
+ * ACTUALLY using (§44 rule 2 made visible), built server-side from
+ * dataclasses.asdict of the real parameter objects. Never contains secret
+ * material; the UI only renders, never edits.
+ */
+export interface PlatformConfig {
+  environment: string;
+  providers: {
+    market_data: string;
+    llm: string;
+    llm_model: string;
+  };
+  account_permissions: AccountPermissions;
+  risk_limits: ConfigRiskLimits;
+  exit_params: ConfigExitParams;
+  selector_params: ConfigSelectorParams;
+  vol_target_params: ConfigVolTargetParams;
+  regime_params: ConfigRegimeParams;
+  directional_params: ConfigDirectionalParams;
+  backtest_defaults: BacktestParams;
+  paper_trading: PaperTradingConfig;
+  kill_switch: {
+    trading_enabled: boolean;
+    reason: string;
+  };
+}
+
 /** Who performed an audited action (mirrors the backend ActorType enum). */
 export type AuditActorType = "USER" | "SYSTEM" | "LLM";
 

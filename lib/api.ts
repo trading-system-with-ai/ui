@@ -12,6 +12,7 @@ import type {
   OrderApproveResult,
   OrderCloseResult,
   OrderPreview,
+  PlatformConfig,
   PortfolioRisk,
   PositionRow,
   PositionStatus,
@@ -219,5 +220,9 @@ export const api = {
   },
   health: {
     strategy: () => request<StrategyHealth>("/api/health/strategy"),
+  },
+  config: {
+    /** Read-only engine configuration (§44 rule 2 made visible); no secret material. */
+    get: () => request<PlatformConfig>("/api/config"),
   },
 };

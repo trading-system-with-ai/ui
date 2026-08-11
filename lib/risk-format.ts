@@ -1,10 +1,21 @@
 import type {
   HeatState,
   Instrument,
+  OpportunityStatus,
   ProposedContract,
   RiskDecision,
   VolRegime,
 } from "./types";
+
+/** Badge class per watchlist opportunity status (shared by Watchlist & Dashboard). */
+export const OPPORTUNITY_BADGE: Record<OpportunityStatus, "green" | "amber" | "red" | "dim"> = {
+  ENTRY_READY: "green",
+  SETUP_FORMING: "amber",
+  DATA_ISSUE: "red",
+  BACKTEST_FAILED: "red",
+  WATCH: "dim",
+  NO_SIGNAL: "dim",
+};
 
 /** Badge class (globals.css .badge.green/.amber/.red) per Portfolio Heat state. */
 export const HEAT_BADGE: Record<HeatState, "green" | "amber" | "red"> = {
