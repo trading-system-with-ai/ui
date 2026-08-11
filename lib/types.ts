@@ -877,6 +877,34 @@ export interface PlatformConfig {
 /** Who performed an audited action (mirrors the backend ActorType enum). */
 export type AuditActorType = "USER" | "SYSTEM" | "LLM";
 
+/* ---------------------------------------------------------------- alerts (§29) */
+
+export type AlertSeverity = "CRITICAL" | "WARNING" | "INFO";
+
+/**
+ * One row from GET /api/alerts — a read-only, severity-classified view over
+ * the audit trail (declarative ALERT_RULES, §18/§29/§38); fetching alerts
+ * never writes audit events. Newest first.
+ *
+ * CRITICAL: TRADING_PAUSED, KILL_SWITCH_TRIGGERED, ORDER_REJECTED.
+ * WARNING:  RISK_DECISION only when rejected or vetoed by an earlier gate
+ *           (PASS/APPROVE/RESIZE previews are NOT alerts), EXIT_GENERATED,
+ *           BACKTEST_FAILED.
+ * INFO:     ORDER_FILLED, TRADING_RESUMED. Everything else is not an alert.
+ */
+export interface Alert {
+  /** The underlying audit row id. */
+  id: number;
+  ts: string;
+  severity: AlertSeverity;
+  /** Human-readable, built server-side from action + details. */
+  title: string;
+  /** "" when the alert is not symbol-scoped. */
+  ticker: string;
+  action: string;
+  correlation_id: string;
+}
+
 export interface AuditEvent {
   id: number;
   ts: string;

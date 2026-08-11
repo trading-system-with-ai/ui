@@ -1,4 +1,5 @@
 import type {
+  Alert,
   AuditActorType,
   AuditEvent,
   BacktestParams,
@@ -180,6 +181,14 @@ export const api = {
       request<PositionRow[]>(`/api/positions${status ? `?status=${status}` : ""}`),
     checkExits: () =>
       request<CheckExitsResult>("/api/positions/check-exits", { method: "POST" }),
+  },
+  alerts: {
+    /**
+     * Newest-first severity-classified alerts (§29). `limit` 1..200, server
+     * default 50. Read-only — fetching alerts writes no audit events.
+     */
+    list: (limit?: number) =>
+      request<Alert[]>(`/api/alerts${limit != null ? `?limit=${limit}` : ""}`),
   },
   audit: {
     /** All provided filters combine with AND semantics on the server. */

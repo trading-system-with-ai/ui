@@ -4,7 +4,23 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 13: Fill-model selector (§20.2)
+## 2026-08-10 — Iteration 14: Dashboard alerts panel + Overview context strip
+
+**Built:**
+- Dashboard Alerts panel above Recent Activity (§29 — always rendered, never
+  hidden): severity badges (CRITICAL red with left border / WARNING amber /
+  INFO dim), timestamps, human titles, ticker links, View-all link; distinct
+  empty/loading/error states.
+- Symbol Overview context strip (§33): symbol regime + market regime chips,
+  §7 vol inputs displayed as numbers only (ATM IV / RV20 / IV−RV / expected
+  move — display-only, no client-side re-classification), bias badge; shares
+  the Options tab's query cache.
+
+**Verified:** typecheck + build clean; verifier passed all checks zero-fix.
+
+**Next (iteration 15):**
+1. Promotion-check dialog for Trading Pool adds once backend lands.
+2. Position-monitor status indicator.
 
 **Built:**
 - Backtests config: segmented control for OPTIMISTIC / CONSERVATIVE (default)

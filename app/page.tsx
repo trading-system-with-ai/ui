@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import {
+  ALERT_SEVERITY_BADGE,
   HEAT_BADGE,
   INSTRUMENT_BADGE,
   INSTRUMENT_SHORT,
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const watchlist = useQuery({ queryKey: ["watchlist"], queryFn: api.watchlist.list });
   const pool = useQuery({ queryKey: ["trading-pool"], queryFn: api.tradingPool.list });
   const audit = useQuery({ queryKey: ["audit"], queryFn: () => api.audit.list() });
+  const alerts = useQuery({ queryKey: ["alerts"], queryFn: () => api.alerts.list(50) });
   const status = useQuery({ queryKey: ["trading-status"], queryFn: api.trading.status });
   const overview = useQuery({ queryKey: ["market-overview"], queryFn: api.market.overview });
   const risk = useQuery({ queryKey: ["portfolio-risk"], queryFn: api.portfolio.risk });
@@ -416,6 +418,59 @@ export default function Dashboard() {
               ? "Watchlist overview unavailable."
               : "Loading watchlist opportunities…"}
           </p>
+        )}
+      </div>
+
+      {/* §29 — alerts are visually obvious, never buried: the panel always
+          renders, even (especially) when it is empty or the feed is down. */}
+      <div className="panel">
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 style={{ marginBottom: 0 }}>Alerts</h2>
+          <Link href="/activity" style={{ color: "var(--accent)", fontSize: 12 }}>
+            View all activity →
+          </Link>
+        </div>
+        {alerts.data ? (
+          alerts.data.length > 0 ? (
+            <table>
+              <tbody>
+                {alerts.data.slice(0, 8).map((a) => (
+                  <tr key={a.id}>
+                    <td
+                      style={{
+                        whiteSpace: "nowrap",
+                        // Subtle left accent so CRITICAL rows read at a glance.
+                        borderLeft:
+                          a.severity === "CRITICAL" ? "3px solid var(--red)" : undefined,
+                      }}
+                    >
+                      <span className={`badge ${ALERT_SEVERITY_BADGE[a.severity]}`}>
+                        {a.severity}
+                      </span>
+                    </td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {new Date(a.ts).toLocaleString()}
+                    </td>
+                    <td>{a.title}</td>
+                    <td>
+                      {a.ticker !== "" && (
+                        <Link
+                          href={`/watchlist/${encodeURIComponent(a.ticker)}`}
+                          className="ticker"
+                        >
+                          {a.ticker}
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty">No alerts.</p>
+          )
+        ) : (
+          <p className="empty">{alerts.isError ? "Alerts unavailable." : "Loading alerts…"}</p>
         )}
       </div>
 

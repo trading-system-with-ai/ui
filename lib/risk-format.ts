@@ -1,4 +1,5 @@
 import type {
+  AlertSeverity,
   HeatState,
   Instrument,
   OpportunityStatus,
@@ -15,6 +16,13 @@ export const OPPORTUNITY_BADGE: Record<OpportunityStatus, "green" | "amber" | "r
   BACKTEST_FAILED: "red",
   WATCH: "dim",
   NO_SIGNAL: "dim",
+};
+
+/** Badge class per alert severity (§29 — alerts are visually obvious, never buried). */
+export const ALERT_SEVERITY_BADGE: Record<AlertSeverity, "red" | "amber" | "dim"> = {
+  CRITICAL: "red",
+  WARNING: "amber",
+  INFO: "dim",
 };
 
 /** Badge class (globals.css .badge.green/.amber/.red) per Portfolio Heat state. */

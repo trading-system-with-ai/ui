@@ -67,6 +67,19 @@ function fmtFeature(v: number | boolean): string {
   return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
+/* Null-safe % helpers for the §7 vol chip (fields arrive as FRACTIONS). */
+function pctOrDash(v: number | null | undefined): string {
+  return v == null ? "—" : fmtPct(v);
+}
+
+function signedPctOrDash(v: number | null | undefined): string {
+  return v == null ? "—" : `${v >= 0 ? "+" : ""}${fmtPct(v)}`;
+}
+
+function plusMinusPctOrDash(v: number | null | undefined): string {
+  return v == null ? "—" : `±${fmtPct(v)}`;
+}
+
 const INSUFFICIENT = (
   <span style={{ color: "var(--text-dim)", fontStyle: "italic" }}>insufficient data</span>
 );
@@ -411,11 +424,53 @@ function PriceTab({ ticker }: { ticker: string }) {
 
 /* ---------------------------------------------------------------- tab bodies */
 
-function OverviewTab({ analysis }: { analysis: SymbolAnalysis }) {
+/**
+ * §33 context strip — one wrapping row of chips: symbol regime, market regime,
+ * the §7 volatility INPUTS, and the bias badge. The vol chip only DISPLAYS the
+ * numbers the options summary reports (null-safe "—" per field) — the §7
+ * classification itself happens server-side and is never re-derived here.
+ */
+function OverviewContextStrip({ ticker, analysis }: { ticker: string; analysis: SymbolAnalysis }) {
+  const market = useQuery({ queryKey: ["market-overview"], queryFn: api.market.overview });
+  // Same key as the Options tab's default view — the two share one cache entry.
+  const options = useQuery({
+    queryKey: ["options", ticker, "AUTO"],
+    queryFn: () => api.watchlist.options(ticker),
+    enabled: ticker.length > 0,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status === 404) && failureCount < 1,
+  });
+
+  const s = options.data?.summary;
+  return (
+    <div className="row" style={{ flexWrap: "wrap", marginBottom: 16 }}>
+      <span className="chip" title="Symbol regime (§6.1 classification)">
+        regime {analysis.regime.classification}
+      </span>
+      <span className="chip" title="Market regime (market overview)">
+        market {market.data?.market_regime ?? "—"}
+      </span>
+      <span
+        className="chip"
+        title="§7 volatility inputs from the options summary — display only; the vol regime is classified server-side"
+      >
+        ATM IV {pctOrDash(s?.atm_iv)} · RV20 {pctOrDash(s?.rv20)} · IV−RV{" "}
+        {signedPctOrDash(s?.iv_rv_spread)} · exp move {plusMinusPctOrDash(s?.expected_move_pct)}
+      </span>
+      <span className={`badge ${analysis.signal.bias.toLowerCase()}`}>
+        {analysis.signal.bias}
+      </span>
+    </div>
+  );
+}
+
+function OverviewTab({ ticker, analysis }: { ticker: string; analysis: SymbolAnalysis }) {
   const { signal, regime } = analysis;
   const featureEntries = Object.entries(regime.features);
   return (
     <>
+      <OverviewContextStrip ticker={ticker} analysis={analysis} />
+
       <div className="statbar">
         <div className="stat">
           <div className="label">Price</div>
@@ -1254,7 +1309,7 @@ export default function SymbolAnalysisPage() {
           )}
         </div>
       ) : tab === "overview" ? (
-        <OverviewTab analysis={analysis.data} />
+        <OverviewTab ticker={ticker} analysis={analysis.data} />
       ) : (
         <TechnicalTab analysis={analysis.data} />
       )}
