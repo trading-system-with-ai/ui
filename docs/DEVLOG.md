@@ -4,7 +4,22 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 14: Dashboard alerts panel + Overview context strip
+## 2026-08-10 — Iteration 15: Promotion-check dialog + exit-monitor status
+
+**Built:**
+- Watchlist promote flow now §4.3-aware: unacknowledged attempt first; a 422
+  with structured checks opens an inline review panel (✓/✗ per check with
+  honest details, stub LIQUIDITY dimmed) offering Cancel or a
+  confirm()-gated "Acknowledge risks & promote anyway" that restates the
+  permanent audit recording; success banners distinguish acknowledged
+  (amber + audit note) from clean promotions.
+- Positions page: auto-exit-monitor status line (interval/last sweep/counts;
+  amber "disabled — exits run only via the manual button" state).
+
+**Verified:** typecheck + build clean first run; verifier passed all checks
+zero-fix (incl. type-safe structured-422 narrowing).
+
+**Next (iteration 16):** docs polish; possible loop wrap-up review.
 
 **Built:**
 - Dashboard Alerts panel above Recent Activity (§29 — always rendered, never

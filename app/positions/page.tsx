@@ -128,6 +128,10 @@ export default function PositionsPage() {
     queryKey: ["positions", "OPEN"],
     queryFn: () => api.positions.list("OPEN"),
   });
+  const monitor = useQuery({
+    queryKey: ["positions-monitor"],
+    queryFn: api.positions.monitorStatus,
+  });
   const closed = useQuery({
     queryKey: ["positions", "CLOSED"],
     queryFn: () => api.positions.list("CLOSED"),
@@ -236,6 +240,29 @@ export default function PositionsPage() {
             : "all held"}
         </div>
       )}
+
+      {monitor.data &&
+        (monitor.data.enabled ? (
+          <p className="datasource" style={{ marginBottom: 8 }}>
+            Auto exit monitor: every {monitor.data.interval_seconds}s · last sweep{" "}
+            {monitor.data.last_sweep_at == null
+              ? "never"
+              : new Date(monitor.data.last_sweep_at).toLocaleString()}
+            {monitor.data.last_result != null &&
+              ` · ${monitor.data.last_result.checked} checked / ${monitor.data.last_result.exits_triggered} exits`}
+          </p>
+        ) : (
+          <p
+            style={{
+              color: "var(--amber)",
+              fontFamily: "var(--font-mono)",
+              fontSize: 12,
+              marginBottom: 8,
+            }}
+          >
+            Auto exit monitor: disabled — exits run only via the manual button below
+          </p>
+        ))}
 
       <div className="panel">
         <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", marginBottom: 4 }}>

@@ -13,6 +13,40 @@ export interface TradingPoolItem {
   created_at: string;
 }
 
+/* ------------------------------------------------ trading-pool promotion checks (§4.3) */
+
+/**
+ * One §4.3 promotion check, evaluated in order:
+ * MIN_HISTORY (stored bars >= RegimeParams.sma_slow), BACKTEST_COMPLETED,
+ * OOS_STATS (latest COMPLETED backtest has >= 1 out-of-sample trade), and
+ * LIQUIDITY (documented stub — always passed until the Massive integration).
+ */
+export interface PromotionCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
+/**
+ * 201 body from POST /api/trading-pool — the pool row plus the checks that
+ * were evaluated and whether the user overrode failures. The TRADING_POOL_ADD
+ * audit event ALWAYS records both, so an acknowledged override is permanently
+ * visible in the audit trail (§4.3, §38).
+ */
+export interface TradingPoolPromoteResult extends TradingPoolItem {
+  promotion_checks: PromotionCheck[];
+  risks_acknowledged: boolean;
+}
+
+/**
+ * 422 `detail` body from POST /api/trading-pool when any check fails and
+ * acknowledge_risks was not set — review and acknowledge to proceed.
+ */
+export interface PromotionCheckErrorDetail {
+  message: string;
+  checks: PromotionCheck[];
+}
+
 export interface TradingStatus {
   trading_enabled: boolean;
   reason: string;
@@ -629,6 +663,18 @@ export interface CheckExitsResult {
   checked: number;
   exits_triggered: { ticker: string; rule: string; order_id: number }[];
   held: { ticker: string; reasons: string[] }[];
+}
+
+/**
+ * GET /api/positions/monitor — status of the automated exit-sweep monitor.
+ * `last_sweep_at` / `last_result` are null when no sweep has run yet.
+ */
+export interface PositionMonitorStatus {
+  enabled: boolean;
+  interval_seconds: number;
+  last_sweep_at: string | null;
+  sweeps_total: number;
+  last_result: { checked: number; exits_triggered: number } | null;
 }
 
 /* ---------------------------------------------------------------- recommendations */

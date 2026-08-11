@@ -3,8 +3,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { OPPORTUNITY_BADGE } from "@/lib/risk-format";
+import type { PromotionCheck, PromotionCheckErrorDetail } from "@/lib/types";
+
+/** Narrow the 422 `detail` from POST /api/trading-pool to the §4.3 checks shape. */
+function isPromotionCheckFailure(detail: unknown): detail is PromotionCheckErrorDetail {
+  return (
+    typeof detail === "object" &&
+    detail !== null &&
+    Array.isArray((detail as { checks?: unknown }).checks)
+  );
+}
 
 function backtestBadgeClass(status: string): string {
   const s = status.toUpperCase();
@@ -24,6 +34,15 @@ export default function WatchlistPage() {
   const qc = useQueryClient();
   const [ticker, setTicker] = useState("");
   const [error, setError] = useState("");
+  /** §4.3 — the ticker whose promotion checks failed, with the checks to review. */
+  const [checkFailure, setCheckFailure] = useState<{
+    ticker: string;
+    checks: PromotionCheck[];
+  } | null>(null);
+  const [promoteNote, setPromoteNote] = useState<{
+    ticker: string;
+    risksAcknowledged: boolean;
+  } | null>(null);
 
   const watchlist = useQuery({ queryKey: ["watchlist"], queryFn: api.watchlist.list });
   const pool = useQuery({ queryKey: ["trading-pool"], queryFn: api.tradingPool.list });
@@ -60,11 +79,43 @@ export default function WatchlistPage() {
     onError: (e: Error) => setError(e.message),
   });
 
+  // §4.3 promote flow: always try WITHOUT acknowledgement first. A 422 whose
+  // detail carries the checks opens the review panel below the table; the
+  // danger action there retries with acknowledge=true (permanently audited).
   const promote = useMutation({
-    mutationFn: (t: string) => api.tradingPool.promote(t),
-    onSuccess: invalidate,
-    onError: (e: Error) => setError(e.message),
+    mutationFn: ({ ticker, acknowledge }: { ticker: string; acknowledge?: boolean }) =>
+      api.tradingPool.promote(ticker, acknowledge),
+    onSuccess: (res) => {
+      setCheckFailure(null);
+      setError("");
+      setPromoteNote({
+        ticker: res.ticker,
+        risksAcknowledged: res.risks_acknowledged === true,
+      });
+      invalidate();
+    },
+    onError: (e: Error, vars) => {
+      if (e instanceof ApiError && e.status === 422 && isPromotionCheckFailure(e.detail)) {
+        setPromoteNote(null);
+        setError("");
+        setCheckFailure({ ticker: vars.ticker, checks: e.detail.checks });
+      } else {
+        setError(e.message);
+      }
+    },
   });
+
+  const acknowledgeAndPromote = (failure: { ticker: string; checks: PromotionCheck[] }) => {
+    const failed = failure.checks.filter((c) => !c.passed).map((c) => c.name);
+    const ok = confirm(
+      `Acknowledge risks and promote ${failure.ticker} anyway?\n\n` +
+        `Failed checks: ${failed.length > 0 ? failed.join(", ") : "none"}.\n\n` +
+        `Per §4.3, this override — including the full list of failed checks — is ` +
+        `permanently recorded in the TRADING_POOL_ADD audit trail (§38). ` +
+        `The acknowledgement cannot be hidden or removed later.`,
+    );
+    if (ok) promote.mutate({ ticker: failure.ticker, acknowledge: true });
+  };
 
   return (
     <>
@@ -95,6 +146,14 @@ export default function WatchlistPage() {
         </form>
         {error && <p className="error">{error}</p>}
       </div>
+
+      {promoteNote && (
+        <div className={`banner ${promoteNote.risksAcknowledged ? "paused" : "active"}`}>
+          {promoteNote.ticker} promoted to the Trading Pool.
+          {promoteNote.risksAcknowledged &&
+            " Risks acknowledged — the override and the failed checks are permanently recorded in the audit trail (§4.3)."}
+        </div>
+      )}
 
       <div className="panel">
         <h2>Symbols ({watchlist.data?.length ?? 0})</h2>
@@ -196,7 +255,7 @@ export default function WatchlistPage() {
                           </Link>
                           {!poolTickers.has(w.ticker) && (
                             <button
-                              onClick={() => promote.mutate(w.ticker)}
+                              onClick={() => promote.mutate({ ticker: w.ticker })}
                               disabled={promote.isPending}
                             >
                               Promote to Trading Pool
@@ -228,6 +287,61 @@ export default function WatchlistPage() {
           <p className="empty">Watchlist is empty. Add a ticker above to begin research.</p>
         )}
       </div>
+
+      {checkFailure && (
+        <div className="panel" style={{ borderColor: "var(--red)" }}>
+          <h2 style={{ color: "var(--red)" }}>
+            Promotion checks failed — {checkFailure.ticker}
+          </h2>
+          <ul style={{ listStyle: "none", margin: "0 0 14px", padding: 0 }}>
+            {checkFailure.checks.map((c) => (
+              <li
+                key={c.name}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 13,
+                  marginBottom: 6,
+                }}
+              >
+                <span
+                  style={{
+                    color: c.passed ? "var(--green)" : "var(--red)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {c.passed ? "✓" : "✗"} {c.name}
+                </span>{" "}
+                <span
+                  style={
+                    // The LIQUIDITY pass is a documented §4.3 stub, not real
+                    // evidence — render its note dimmed so it never reads as a
+                    // completed liquidity screen.
+                    c.name === "LIQUIDITY"
+                      ? { color: "var(--text-dim)", fontStyle: "italic" }
+                      : undefined
+                  }
+                >
+                  {c.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>
+            Promoting anyway records the override — including every failed check above — in
+            the TRADING_POOL_ADD audit trail, permanently (§4.3, §38).
+          </p>
+          <div className="row">
+            <button onClick={() => setCheckFailure(null)}>Cancel</button>
+            <button
+              className="danger"
+              disabled={promote.isPending}
+              onClick={() => acknowledgeAndPromote(checkFailure)}
+            >
+              Acknowledge risks &amp; promote anyway
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

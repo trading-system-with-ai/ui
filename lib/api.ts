@@ -15,6 +15,7 @@ import type {
   OrderPreview,
   PlatformConfig,
   PortfolioRisk,
+  PositionMonitorStatus,
   PositionRow,
   PositionStatus,
   Recommendation,
@@ -24,6 +25,7 @@ import type {
   StrategyHealth,
   SymbolAnalysis,
   TradingPoolItem,
+  TradingPoolPromoteResult,
   TradingStatus,
   WatchlistItem,
   WatchlistOverviewItem,
@@ -111,10 +113,21 @@ export const api = {
   },
   tradingPool: {
     list: () => request<TradingPoolItem[]>("/api/trading-pool"),
-    promote: (ticker: string) =>
-      request<TradingPoolItem>("/api/trading-pool", {
+    /**
+     * §4.3 promote — the server evaluates the promotion checks (MIN_HISTORY,
+     * BACKTEST_COMPLETED, OOS_STATS, LIQUIDITY stub) in order. All passed (or
+     * acknowledgeRisks true) -> 201 with promotion_checks + risks_acknowledged;
+     * any failure without acknowledgement -> 422 whose `detail` is a
+     * PromotionCheckErrorDetail. Either way the TRADING_POOL_ADD audit event
+     * permanently records the checks and the acknowledged flag (§38).
+     */
+    promote: (ticker: string, acknowledgeRisks = false) =>
+      request<TradingPoolPromoteResult>("/api/trading-pool", {
         method: "POST",
-        body: JSON.stringify({ ticker }),
+        body: JSON.stringify({
+          ticker,
+          ...(acknowledgeRisks ? { acknowledge_risks: true } : {}),
+        }),
       }),
     toggle: (ticker: string, enabled: boolean) =>
       request<TradingPoolItem>(`/api/trading-pool/${ticker}/trading`, {
@@ -181,6 +194,9 @@ export const api = {
       request<PositionRow[]>(`/api/positions${status ? `?status=${status}` : ""}`),
     checkExits: () =>
       request<CheckExitsResult>("/api/positions/check-exits", { method: "POST" }),
+    /** Status of the automated exit-sweep monitor (read-only). */
+    monitorStatus: () =>
+      request<PositionMonitorStatus>("/api/positions/monitor"),
   },
   alerts: {
     /**
