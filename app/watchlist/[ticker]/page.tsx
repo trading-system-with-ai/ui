@@ -838,6 +838,12 @@ function ApprovePanel({ ticker, plan }: { ticker: string; plan: OrderPreview }) 
 function TradePlanResult({ plan, execute }: { plan: OrderPreview; execute?: ReactNode }) {
   const gates = [...plan.gates].sort((a, b) => gateRank(a.name) - gateRank(b.name));
   const { proposed, risk, signal } = plan;
+  // §14 — when the RISK_APPROVAL gate applied a vol-targeting multiplier to the
+  // risk budget, surface its detail verbatim next to the budget figure (the
+  // gate detail is the audited wording; it is never truncated).
+  const riskGateDetail = gates.find((g) => g.name === "RISK_APPROVAL")?.detail;
+  const multiplierNote =
+    riskGateDetail != null && /multiplier/i.test(riskGateDetail) ? riskGateDetail : null;
   const isOption = proposed.instrument === "LONG_CALL" || proposed.instrument === "LONG_PUT";
   // Quantities are CONTRACTS (×100 multiplier) for options, SHARES for stock.
   const unitSuffix = isOption ? " CONTRACTS" : proposed.instrument === "LONG_STOCK" ? " SHARES" : "";
@@ -958,6 +964,19 @@ function TradePlanResult({ plan, execute }: { plan: OrderPreview; execute?: Reac
                 <div className="v">{risk.cash_after_pct == null ? "—" : fmtPct(risk.cash_after_pct)}</div>
               </div>
             </div>
+            {multiplierNote != null && (
+              <p
+                style={{
+                  color: "var(--text-dim)",
+                  fontSize: 12,
+                  fontFamily: "var(--font-mono)",
+                  marginBottom: 8,
+                }}
+                title="From the RISK_APPROVAL gate — §14 vol-targeting multiplier applied to the risk budget. Hard risk caps always apply."
+              >
+                {multiplierNote}
+              </p>
+            )}
             {isOption && (
               <p style={{ color: "var(--text-dim)", fontSize: 12, marginBottom: 8 }}>
                 §12.1 options sizing: entry price and stop distance are BOTH the full premium

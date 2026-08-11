@@ -3,7 +3,14 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { DECISION_BADGE, HEAT_BADGE, fmtPct, fmtUsd, utilizationSeverity } from "@/lib/risk-format";
+import {
+  DECISION_BADGE,
+  HEAT_BADGE,
+  INSTRUMENT_BADGE,
+  fmtPct,
+  fmtUsd,
+  utilizationSeverity,
+} from "@/lib/risk-format";
 import type {
   AuditEvent,
   PortfolioRisk,
@@ -11,6 +18,7 @@ import type {
   RiskLimits,
   StrategyHealth,
   StrategyHealthStatus,
+  VolTargeting,
 } from "@/lib/types";
 
 /* ---------------------------------------------------------------- limits copy */
@@ -58,6 +66,36 @@ const LIMIT_ROWS: { key: keyof RiskLimits; label: string; meaning: string }[] = 
 const NO_DATA = (
   <span style={{ color: "var(--text-dim)", fontStyle: "italic" }}>no data</span>
 );
+
+/** Shares / share-equivalents — options make these fractional, keep 1 decimal max. */
+function fmtShares(v: number): string {
+  return v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+/** Small unitless Greek (gamma) — up to 2 decimals, no trailing zeros. */
+function fmtGreek(v: number): string {
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/**
+ * Annualized vol fraction → "12%" / "18.2%" (whole percents drop the ".0" so the
+ * line reads "target 12%", not "target 12.0%").
+ */
+function fmtVol(v: number): string {
+  const pct = v * 100;
+  const digits = Math.abs(pct - Math.round(pct)) < 1e-9 ? 0 : 1;
+  return `${pct.toFixed(digits)}%`;
+}
+
+/** "0.66×" / "1.0×" — at least one decimal so the multiplier never reads as a count. */
+function fmtMultiplier(v: number): string {
+  return `${v.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}×`;
+}
+
+/** Badge class for a per-position instrument label (unknown labels render dim). */
+function instrumentBadge(instrument: string): string {
+  return (INSTRUMENT_BADGE as Record<string, string | undefined>)[instrument] ?? "dim";
+}
 
 function decisionFromDetails(details: Record<string, unknown>): {
   decision: RiskDecision | null;
@@ -140,10 +178,162 @@ function StatTiles({ d }: { d: PortfolioRisk }) {
   );
 }
 
+/**
+ * §14 vol targeting — how much NEW risk budgets are scaled by forecast vs
+ * target vol. Amber when the multiplier is scaling risk down (< 1×).
+ */
+function VolTargetingLine({ v }: { v: VolTargeting }) {
+  const scalingDown = v.multiplier < 1;
+  return (
+    <p
+      style={{
+        color: scalingDown ? "var(--amber)" : "var(--text-dim)",
+        fontSize: 12,
+        fontFamily: "var(--font-mono)",
+        margin: "-4px 0 16px",
+      }}
+      title={v.note}
+    >
+      {v.forecast_vol == null
+        ? `Vol targeting: no open positions — multiplier ${fmtMultiplier(v.multiplier)}`
+        : `Vol targeting: forecast ${fmtVol(v.forecast_vol)} vs target ${fmtVol(v.target_vol)} → multiplier ${fmtMultiplier(v.multiplier)}`}
+      <span style={{ color: "var(--text-dim)" }}>
+        {" "}· max {fmtMultiplier(v.max_multiplier)} · hard risk caps always apply
+      </span>
+    </p>
+  );
+}
+
+/** §16 / §36 — portfolio-level Net Delta / Gamma / Theta / Vega, always shown. */
+function GreeksPanel({ d }: { d: PortfolioRisk }) {
+  const g = d.greeks;
+  if (g == null) return null; // older backend without the §16 contract additions
+  // Theta limit is a fraction of NAV; flag decay once it burns past HALF the cap.
+  const thetaLimitUsd = g.limits.max_net_theta_pct_nav * d.nav;
+  const thetaRed =
+    g.net_theta_usd_per_day < 0 &&
+    Math.abs(g.net_theta_usd_per_day) > thetaLimitUsd / 2;
+  const deltaBreached =
+    Math.abs(g.delta_notional_pct_nav) > g.limits.max_delta_notional_pct_nav;
+  return (
+    <div className="panel">
+      <h2>Portfolio Greeks</h2>
+      {g.breaches.map((b, i) => (
+        <div className="banner breach" key={i} style={{ marginBottom: 8 }}>
+          {b}
+        </div>
+      ))}
+      <div className="statbar" style={{ marginBottom: 12 }}>
+        <div className="stat">
+          <div className="label">Net Delta</div>
+          <div className="value">{fmtShares(g.net_delta_shares)}</div>
+          <div className="sub">equivalent shares</div>
+        </div>
+        <div className="stat">
+          <div className="label">Delta-Adj Notional</div>
+          <div
+            className="value"
+            style={deltaBreached ? { color: "var(--red)" } : undefined}
+          >
+            {fmtUsd(g.delta_adjusted_notional_usd)}
+          </div>
+          <div className="sub" style={deltaBreached ? { color: "var(--red)" } : undefined}>
+            {fmtPct(g.delta_notional_pct_nav)} of NAV · limit{" "}
+            {fmtPct(g.limits.max_delta_notional_pct_nav)}
+            {deltaBreached ? " — BREACH" : ""}
+          </div>
+        </div>
+        <div className="stat">
+          <div className="label">Net Gamma</div>
+          <div className="value">{fmtGreek(g.net_gamma)}</div>
+          <div className="sub">Δ shares per $1 spot move</div>
+        </div>
+        <div className="stat">
+          <div className="label">Net Theta</div>
+          <div className="value" style={thetaRed ? { color: "var(--red)" } : undefined}>
+            {fmtUsd(g.net_theta_usd_per_day, 2)}
+          </div>
+          <div className="sub" style={thetaRed ? { color: "var(--red)" } : undefined}>
+            $/day decay · limit {fmtPct(g.limits.max_net_theta_pct_nav)} of NAV
+            {thetaRed ? " — past half the limit" : ""}
+          </div>
+        </div>
+        <div className="stat">
+          <div className="label">Net Vega</div>
+          <div className="value">{fmtUsd(g.net_vega_usd, 2)}</div>
+          <div className="sub">
+            $ per IV pt · limit {fmtPct(g.limits.max_net_vega_pct_nav)} of NAV
+          </div>
+        </div>
+      </div>
+      {g.per_position.length > 0 ? (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Instrument</th>
+                <th className="num">Equiv. shares</th>
+                <th className="num">Delta notional</th>
+                <th className="num">Gamma</th>
+                <th className="num">Theta/day</th>
+                <th className="num">Vega</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.per_position.map((p) => (
+                <tr
+                  key={`${p.ticker}-${p.instrument}`}
+                  style={p.data_ok ? undefined : { opacity: 0.55 }}
+                >
+                  <td className="ticker">{p.ticker}</td>
+                  <td>
+                    <span className={`badge ${instrumentBadge(p.instrument)}`}>
+                      {p.instrument}
+                    </span>
+                  </td>
+                  <td className="num">{fmtShares(p.equivalent_shares)}</td>
+                  <td className="num">{fmtUsd(p.delta_notional_usd)}</td>
+                  <td className="num">{fmtGreek(p.gamma)}</td>
+                  <td className="num">{fmtUsd(p.theta_usd_per_day, 2)}</td>
+                  <td className="num">{fmtUsd(p.vega_usd, 2)}</td>
+                  <td>
+                    {p.data_ok ? (
+                      ""
+                    ) : (
+                      <span
+                        style={{
+                          color: "var(--text-dim)",
+                          fontStyle: "italic",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        no chain data
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="empty">No open positions — portfolio Greeks are flat.</p>
+      )}
+    </div>
+  );
+}
+
 function BucketsPanel({ d }: { d: PortfolioRisk }) {
   return (
     <div className="panel">
       <h2>Correlation buckets</h2>
+      <p style={{ color: "var(--text-dim)", fontSize: 12, marginBottom: 12 }}>
+        STATIC buckets are configured groups; DYNAMIC buckets are connected components of
+        rolling 60-day correlation &gt; 0.70 among open-position tickers, computed from
+        stored bars (§12.4).
+      </p>
       {d.buckets.length > 0 ? (
         d.buckets.map((b) => {
           // utilization_pct is a FRACTION of the cap (1.0 = cap fully used).
@@ -153,7 +343,19 @@ function BucketsPanel({ d }: { d: PortfolioRisk }) {
           return (
             <div className="bucket" key={b.name}>
               <div className="bucket-head">
-                <span className="name">{b.name}</span>
+                <span className="name">
+                  {b.name}{" "}
+                  <span
+                    className={`badge ${(b.kind ?? "STATIC") === "DYNAMIC" ? "accent" : "dim"}`}
+                    title={
+                      (b.kind ?? "STATIC") === "DYNAMIC"
+                        ? "Computed from rolling 60d correlation > 0.70 among open positions (§12.4)"
+                        : "Configured bucket"
+                    }
+                  >
+                    {b.kind ?? "STATIC"}
+                  </span>
+                </span>
                 <span className="figures">
                   risk {fmtUsd(b.risk_usd)} · {fmtPct(b.risk_pct)} of NAV · cap{" "}
                   {fmtPct(b.cap_pct)} · {fmtPct(b.utilization_pct, 0)} used
@@ -440,8 +642,8 @@ export default function RiskPage() {
     <>
       <h1>Risk</h1>
       <p className="subtitle">
-        NAV, cash floor, Portfolio Heat, and correlation buckets — the page that decides
-        whether new risk is allowed.
+        NAV, cash floor, Portfolio Heat, portfolio Greeks, and correlation buckets — the
+        page that decides whether new risk is allowed.
       </p>
 
       {risk.isPending ? (
@@ -458,6 +660,10 @@ export default function RiskPage() {
             as of {new Date(risk.data.as_of).toLocaleString()}
           </p>
           <StatTiles d={risk.data} />
+          {risk.data.vol_targeting != null && (
+            <VolTargetingLine v={risk.data.vol_targeting} />
+          )}
+          <GreeksPanel d={risk.data} />
           <BucketsPanel d={risk.data} />
           <PositionsPanel d={risk.data} />
           <LimitsPanel d={risk.data} />

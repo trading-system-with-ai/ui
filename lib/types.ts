@@ -298,13 +298,75 @@ export interface RiskPosition {
   opened_at: string;
 }
 
+/**
+ * §12.4 — STATIC buckets are configured; DYNAMIC buckets are connected
+ * components of rolling-60d correlation > 0.70 among open-position tickers,
+ * computed from stored bars.
+ */
+export type BucketKind = "STATIC" | "DYNAMIC";
+
 export interface RiskBucket {
   name: string;
+  kind: BucketKind;
   tickers: string[];
   risk_usd: number;
   risk_pct: number;
   cap_pct: number;
   utilization_pct: number;
+}
+
+/* ------------------------------------------------ portfolio Greeks (§16) */
+
+/** Per-position Greek contribution (stock rows: delta 1/share, other Greeks 0). */
+export interface GreekPositionRow {
+  ticker: string;
+  /** Instrument label (LONG_STOCK / LONG_CALL / LONG_PUT). */
+  instrument: string;
+  /** Delta-equivalent shares (options: delta × 100 × contracts). */
+  equivalent_shares: number;
+  delta_notional_usd: number;
+  gamma: number;
+  theta_usd_per_day: number;
+  vega_usd: number;
+  /** false = no chain data for this row — its Greeks are unreliable. */
+  data_ok: boolean;
+}
+
+export interface GreekLimits {
+  /** All fractions of NAV (0.5 = 50%). */
+  max_delta_notional_pct_nav: number;
+  max_net_theta_pct_nav: number;
+  max_net_vega_pct_nav: number;
+}
+
+/** §16 portfolio-level Greeks aggregated across open positions. */
+export interface PortfolioGreeks {
+  net_delta_shares: number;
+  delta_adjusted_notional_usd: number;
+  /** FRACTION of NAV (0.35 = 35%). */
+  delta_notional_pct_nav: number;
+  net_gamma: number;
+  net_theta_usd_per_day: number;
+  /** $ P&L per 1 IV point move. */
+  net_vega_usd: number;
+  limits: GreekLimits;
+  /** Human-readable breach lines; empty when all Greek limits are respected. */
+  breaches: string[];
+  per_position: GreekPositionRow[];
+}
+
+/**
+ * §14 volatility targeting — scales NEW risk budgets by target/forecast vol,
+ * capped at max_multiplier. Hard risk caps always apply regardless.
+ */
+export interface VolTargeting {
+  /** Annualized target vol (fraction, 0.12 = 12%). */
+  target_vol: number;
+  /** Forecast portfolio vol (fraction); null when there are no open positions. */
+  forecast_vol: number | null;
+  multiplier: number;
+  max_multiplier: number;
+  note: string;
 }
 
 export interface RiskLimits {
@@ -332,6 +394,8 @@ export interface PortfolioRisk {
   positions: RiskPosition[];
   buckets: RiskBucket[];
   limits: RiskLimits;
+  greeks: PortfolioGreeks;
+  vol_targeting: VolTargeting;
 }
 
 /* ---------------------------------------------------------------- order preview */

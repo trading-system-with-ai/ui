@@ -4,7 +4,24 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 10: Instrument decision + option contracts in Trade Plan & Positions
+## 2026-08-10 — Iteration 11: Portfolio Greeks panel, vol-targeting line, bucket kinds
+
+**Built:**
+- Risk page Portfolio Greeks panel (§36/§16): Net Delta (equivalent shares),
+  Delta-Adjusted Notional ($ + % NAV vs limit with BREACH state), Net Gamma,
+  Net Theta ($/day, red past half the cap), Net Vega; per-position
+  contribution table with dimmed "no chain data" rows; red breach banners.
+- Vol-targeting line (§14): forecast vs target vs multiplier with the
+  "hard risk caps always apply" note; amber when scaling down.
+- Bucket rows now show STATIC/DYNAMIC chips + the 60d/0.70 explainer.
+- Trade Plan renders the full RISK_APPROVAL detail (multiplier note included).
+
+**Verified:** typecheck + build clean (stale .next cleared once more); all six
+static UX checks passed, fraction formatting confirmed correct.
+
+**Next (iteration 12):**
+1. Settings page v1 (read-only config view) once backend exposes it.
+2. Dashboard: watchlist opportunities panel using the overview endpoint.
 
 **Built:**
 - Trade Plan: instrument badge (LONG_STOCK/LONG_CALL/LONG_PUT/NO_TRADE),
