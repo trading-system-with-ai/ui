@@ -236,6 +236,33 @@ select:focus { outline: none; border-color: var(--accent); }
 }
 .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .param-field label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+.param-field.dimmed { opacity: 0.5; }
+.param-field.dimmed input:disabled { cursor: not-allowed; }
+
+/* §20.2 fill-model selector: three-way segmented control + per-option description. */
+.fill-model-block { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.seg-control {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg-control button {
+  flex: 1;
+  background: var(--bg);
+  border: none;
+  border-radius: 0;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  letter-spacing: 0.3px;
+}
+.seg-control button + button { border-left: 1px solid var(--border); }
+.seg-control button:hover { color: var(--text); border-color: var(--border); }
+.seg-control button.active { background: rgba(68, 147, 248, 0.15); color: var(--accent); }
+.seg-desc { color: var(--text-dim); font-size: 11px; margin-top: 4px; line-height: 1.45; }
 
 .table-scroll { overflow-x: auto; }
 .click-row { cursor: pointer; }

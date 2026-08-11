@@ -186,10 +186,25 @@ export interface OptionChainResponse {
 
 /* ---------------------------------------------------------------- backtests */
 
+/**
+ * §20.2 fill model, mapped onto daily-bar data (no historical bid/ask yet).
+ * Effective slippage applied to next-open fills:
+ *   OPTIMISTIC   -> 0 bps (next-open, frictionless best case)
+ *   CONSERVATIVE -> slippage_bps (the existing default behavior)
+ *   WORST        -> max(slippage_bps, worst_slippage_bps)
+ * Commission is unchanged in all models. Once real quote data lands, WORST
+ * becomes ask-to-buy / bid-to-sell instead of a bps proxy.
+ */
+export type FillModel = "OPTIMISTIC" | "CONSERVATIVE" | "WORST";
+
 export interface BacktestParams {
   position_pct: number;
   commission_per_share: number;
   slippage_bps: number;
+  /** §20.2 fill model — server-validated; default CONSERVATIVE. */
+  fill_model: FillModel;
+  /** Extra bps floor used only by WORST: max(slippage_bps, worst_slippage_bps). >= 0, validated. */
+  worst_slippage_bps: number;
   entry_edge_threshold: number;
   exit_edge_threshold: number;
   atr_trail_k: number;
@@ -259,6 +274,8 @@ export interface BacktestSummary {
   total_return_pct: number;
   profit_factor: number | null;
   oos_start_date: string | null;
+  /** §20.2 fill model; absent/null on rows that predate the field — treat as CONSERVATIVE. */
+  fill_model?: FillModel | null;
 }
 
 /* ---------------------------------------------------------------- watchlist overview */

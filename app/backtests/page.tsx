@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { METRIC_ROWS, fmtNum, fmtPct, returnColor } from "@/lib/backtest-metrics";
-import type { BacktestEquityCurve, BacktestParams, BacktestRecord } from "@/lib/types";
+import type { BacktestEquityCurve, BacktestParams, BacktestRecord, FillModel } from "@/lib/types";
 
 /* ---------------------------------------------------------------- params */
 
@@ -14,6 +14,8 @@ const DEFAULT_PARAMS: BacktestParams = {
   position_pct: 1.0,
   commission_per_share: 0.005,
   slippage_bps: 5.0,
+  fill_model: "CONSERVATIVE",
+  worst_slippage_bps: 25.0,
   entry_edge_threshold: 25.0,
   exit_edge_threshold: 10.0,
   atr_trail_k: 3.0,
@@ -23,9 +25,34 @@ const DEFAULT_PARAMS: BacktestParams = {
   warmup_bars: 200,
 };
 
-type ParamKey = keyof BacktestParams;
+/** Every BacktestParams field except the enum — these run through the numeric inputs. */
+type NumericParamKey = Exclude<keyof BacktestParams, "fill_model">;
 
-const PARAM_GROUPS: { title: string; fields: { key: ParamKey; label: string; step: string }[] }[] = [
+interface NumericField {
+  key: NumericParamKey;
+  label: string;
+  step: string;
+}
+
+/**
+ * §20.2 fill models mapped to daily-bar data (no historical bid/ask yet — WORST
+ * becomes ask-to-buy/bid-to-sell once real quote data lands). Commission is
+ * unchanged in all models.
+ */
+const FILL_MODELS: { value: FillModel; desc: string }[] = [
+  { value: "OPTIMISTIC", desc: "next-open, frictionless best case — upper bound, never plan on it" },
+  { value: "CONSERVATIVE", desc: "next-open ± slippage bps (default)" },
+  { value: "WORST", desc: "next-open ± max(slippage, worst) bps — worst practical case until real quote data lands" },
+];
+
+/** Rendered inside the fill-model block, enabled only when WORST is selected. */
+const WORST_SLIPPAGE_FIELD: NumericField = {
+  key: "worst_slippage_bps",
+  label: "Worst-case slippage (bps)",
+  step: "0.5",
+};
+
+const PARAM_GROUPS: { title: string; fields: NumericField[] }[] = [
   {
     title: "Fills & Costs",
     fields: [
@@ -298,7 +325,10 @@ function ResultsPanel({ record }: { record: BacktestRecord }) {
         </h2>
         <p className="datasource" style={{ marginBottom: 8 }}>
           {new Date(record.created_at).toLocaleString()} ·{" "}
-          <span className={`badge ${record.status === "COMPLETED" ? "green" : "red"}`}>{record.status}</span>
+          <span className={`badge ${record.status === "COMPLETED" ? "green" : "red"}`}>{record.status}</span>{" "}
+          <span className="chip" title="§20.2 fill model">
+            {record.params.fill_model ?? "CONSERVATIVE"}
+          </span>
           {" "}· long stock only (V1) · computed from stored stub/sample bars
         </p>
         {record.status === "FAILED" && (
@@ -342,6 +372,9 @@ function ResultsPanel({ record }: { record: BacktestRecord }) {
                 </tbody>
               </table>
             </div>
+            <p style={{ color: "var(--text-dim)", fontSize: 12, marginTop: 10 }}>
+              §20.2 — historical mid is never a guaranteed fill.
+            </p>
           </div>
 
           <div className="panel">
@@ -427,9 +460,11 @@ function BacktestsView() {
 
   const [selectedId, setSelectedId] = useState<number | null>(() => parseId(idParam));
   const [ticker, setTicker] = useState<string>((tickerParam ?? "").toUpperCase());
-  const [paramValues, setParamValues] = useState<Record<ParamKey, string>>(() => {
-    const init = {} as Record<ParamKey, string>;
-    (Object.keys(DEFAULT_PARAMS) as ParamKey[]).forEach((k) => {
+  const [fillModel, setFillModel] = useState<FillModel>(DEFAULT_PARAMS.fill_model);
+  const [paramValues, setParamValues] = useState<Record<NumericParamKey, string>>(() => {
+    const init = {} as Record<NumericParamKey, string>;
+    (Object.keys(DEFAULT_PARAMS) as (keyof BacktestParams)[]).forEach((k) => {
+      if (k === "fill_model") return;
       init[k] = String(DEFAULT_PARAMS[k]);
     });
     return init;
@@ -473,17 +508,21 @@ function BacktestsView() {
       return;
     }
     const parsed = {} as BacktestParams;
-    for (const group of PARAM_GROUPS) {
-      for (const field of group.fields) {
-        const raw = paramValues[field.key].trim();
-        const num = Number(raw);
-        if (raw === "" || !Number.isFinite(num)) {
-          setFormError(`Invalid value for “${field.label}”.`);
-          return;
-        }
-        parsed[field.key] = num;
+    const numericFields = [...PARAM_GROUPS.flatMap((g) => g.fields), WORST_SLIPPAGE_FIELD];
+    for (const field of numericFields) {
+      const raw = paramValues[field.key].trim();
+      const num = Number(raw);
+      if (raw === "" || !Number.isFinite(num)) {
+        setFormError(`Invalid value for “${field.label}”.`);
+        return;
       }
+      parsed[field.key] = num;
     }
+    if (parsed.worst_slippage_bps < 0) {
+      setFormError("Worst-case slippage (bps) must be >= 0.");
+      return;
+    }
+    parsed.fill_model = fillModel;
     run.mutate(parsed);
   };
 
@@ -568,6 +607,50 @@ function BacktestsView() {
                     </div>
                   ))}
                 </div>
+
+                {group.title === "Fills & Costs" && (
+                  <div className="fill-model-block">
+                    <div className="param-field">
+                      <label id="fill-model-label">Fill model (§20.2)</label>
+                      <div className="seg-control" role="radiogroup" aria-labelledby="fill-model-label">
+                        {FILL_MODELS.map((m) => (
+                          <button
+                            key={m.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={fillModel === m.value}
+                            className={fillModel === m.value ? "active" : ""}
+                            onClick={() => setFillModel(m.value)}
+                          >
+                            {m.value}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="seg-desc">
+                        {FILL_MODELS.find((m) => m.value === fillModel)?.desc}
+                      </p>
+                    </div>
+                    <div className={`param-field${fillModel === "WORST" ? "" : " dimmed"}`}>
+                      <label htmlFor={`param-${WORST_SLIPPAGE_FIELD.key}`}>
+                        {WORST_SLIPPAGE_FIELD.label}
+                      </label>
+                      <input
+                        id={`param-${WORST_SLIPPAGE_FIELD.key}`}
+                        type="number"
+                        step={WORST_SLIPPAGE_FIELD.step}
+                        min="0"
+                        disabled={fillModel !== "WORST"}
+                        value={paramValues[WORST_SLIPPAGE_FIELD.key]}
+                        onChange={(e) =>
+                          setParamValues((prev) => ({
+                            ...prev,
+                            [WORST_SLIPPAGE_FIELD.key]: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -601,6 +684,7 @@ function BacktestsView() {
                     <th>Ticker</th>
                     <th>When</th>
                     <th>Status</th>
+                    <th>Fill</th>
                     <th className="num">Trades</th>
                     <th className="num">Total return</th>
                     <th className="num">PF</th>
@@ -619,6 +703,10 @@ function BacktestsView() {
                         <span className={`badge ${r.status === "COMPLETED" ? "green" : "red"}`}>
                           {r.status}
                         </span>
+                      </td>
+                      <td>
+                        {/* rows that predate the field carry no fill_model — default behavior was CONSERVATIVE */}
+                        <span className="chip">{r.fill_model ?? "CONSERVATIVE"}</span>
                       </td>
                       <td className="num">{r.num_trades}</td>
                       <td className="num" style={{ color: returnColor(r.total_return_pct) }}>

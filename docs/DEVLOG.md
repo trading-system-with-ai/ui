@@ -4,7 +4,21 @@ Newest entries first.
 
 ---
 
-## 2026-08-10 — Iteration 12: Settings page v1 + Dashboard opportunities panel
+## 2026-08-10 — Iteration 13: Fill-model selector (§20.2)
+
+**Built:**
+- Backtests config: segmented control for OPTIMISTIC / CONSERVATIVE (default)
+  / WORST with per-option §20.2 description text; worst_slippage_bps input
+  enabled only under WORST; defaults updated.
+- History rows + results header carry the fill-model chip (null-safe
+  CONSERVATIVE fallback for older records); "§20.2 — historical mid is never
+  a guaranteed fill" reminder under the metrics table.
+
+**Verified:** typecheck + build clean; verifier passed all checks zero-fix.
+
+**Next (iteration 14):**
+1. Dashboard alerts feed once the backend alert rules land.
+2. Symbol Overview tab regime/vol context strip.
 
 **Built:**
 - Settings (§28) placeholder replaced: ten grouped read-only panels each with
