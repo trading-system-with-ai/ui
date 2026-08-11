@@ -9,9 +9,14 @@ LLM providers.
 Dashboard · Recommendations · Watchlist · Trading Pool · Positions · Backtests · Risk ·
 Activity · Settings
 
-Working today: Dashboard (trading status banner, counts, recent activity), Watchlist
-(add/remove/promote), Trading Pool (enable/disable trading, PAUSE ALL), Activity (full
-audit trail). Remaining sections are placeholders tied to their development phase.
+Working today — all nine §28 sections are live: Dashboard (trading status banner,
+alerts feed, top opportunities, counts, recent activity), Recommendations (LLM
+candidates with promote-to-watchlist), Watchlist (add/remove/promote) plus per-symbol
+pages with Price / Options / Backtest / Trade Plan / Audit tabs, Trading Pool
+(enable/disable trading, PAUSE ALL, §4.3 promotion checks), Positions (open positions,
+exit checks, auto-monitor status), Backtests (run + history with fill models), Risk
+(limits, exposure, portfolio Greeks), Activity (full audit trail with filters), and
+Settings (read-only effective config).
 
 ## UX safety principles (from the development plan §39)
 
