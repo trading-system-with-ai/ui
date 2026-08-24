@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 import type { DailyBar } from "@/lib/types";
 
 /* ---------------------------------------------------------------- palette
@@ -43,10 +44,11 @@ function fmtVolume(v: number): string {
  */
 export default function CandlestickChart({ bars }: { bars: DailyBar[] }) {
   const [hover, setHover] = useState<number | null>(null);
+  const t = useT();
 
   const n = bars.length;
   if (n === 0) {
-    return <p className="empty">No price bars available.</p>;
+    return <p className="empty">{t("No price bars available.", "暂无价格K线数据。")}</p>;
   }
 
   // Price y-domain spans the full high/low range, padded 4% so wicks never
@@ -106,7 +108,7 @@ export default function CandlestickChart({ bars }: { bars: DailyBar[] }) {
                 marginRight: 6,
               }}
             />
-            up (hollow, close ≥ open)
+            {t("up (hollow, close ≥ open)", "上涨（空心，收盘 ≥ 开盘）")}
           </span>
           <span>
             <span
@@ -120,7 +122,7 @@ export default function CandlestickChart({ bars }: { bars: DailyBar[] }) {
                 marginRight: 6,
               }}
             />
-            down (filled)
+            {t("down (filled)", "下跌（实心）")}
           </span>
           <span>
             <span
@@ -135,7 +137,7 @@ export default function CandlestickChart({ bars }: { bars: DailyBar[] }) {
                 marginRight: 6,
               }}
             />
-            volume
+            {t("volume", "成交量")}
           </span>
         </div>
 
@@ -143,7 +145,10 @@ export default function CandlestickChart({ bars }: { bars: DailyBar[] }) {
           viewBox={`0 0 ${VB_W} ${VB_H}`}
           style={{ width: "100%", height: "auto", display: "block", outline: "none" }}
           role="img"
-          aria-label={`Daily OHLC candlestick chart with volume, ${bars[0].date} to ${bars[n - 1].date}`}
+          aria-label={t(
+            `Daily OHLC candlestick chart with volume, ${bars[0].date} to ${bars[n - 1].date}`,
+            `日线 OHLC K线图（含成交量），${bars[0].date} 至 ${bars[n - 1].date}`,
+          )}
           tabIndex={0}
           onPointerMove={(e) => moveTo(e.clientX, e.currentTarget)}
           onPointerLeave={() => setHover(null)}
@@ -322,7 +327,7 @@ export default function CandlestickChart({ bars }: { bars: DailyBar[] }) {
                 ["H", hb.high.toFixed(2)],
                 ["L", hb.low.toFixed(2)],
                 ["C", hb.close.toFixed(2)],
-                ["Vol", fmtVolume(hb.volume)],
+                [t("Vol", "成交量"), fmtVolume(hb.volume)],
               ] as const
             ).map(([name, value]) => (
               <div key={name} className="tt-row">

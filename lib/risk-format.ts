@@ -3,8 +3,10 @@ import type {
   HeatState,
   Instrument,
   OpportunityStatus,
+  OptionRight,
   ProposedContract,
   RiskDecision,
+  TradeabilityState,
   VolRegime,
 } from "./types";
 
@@ -16,6 +18,17 @@ export const OPPORTUNITY_BADGE: Record<OpportunityStatus, "green" | "amber" | "r
   BACKTEST_FAILED: "red",
   WATCH: "dim",
   NO_SIGNAL: "dim",
+};
+
+/** Badge class per §9 tradeability state (§32 severity semantics). */
+export const TRADEABILITY_BADGE: Record<
+  TradeabilityState,
+  "green" | "amber" | "red" | "dim"
+> = {
+  TRADEABLE: "green",
+  CONDITIONAL: "amber",
+  BLOCKED: "red",
+  DATA_INSUFFICIENT: "dim",
 };
 
 /** Badge class per alert severity (§29 — alerts are visually obvious, never buried). */
@@ -69,6 +82,25 @@ export const VOL_REGIME_BADGE: Record<VolRegime, "dim" | "accent" | "amber" | "r
 /** "$150" / "$152.50" — strike without spurious decimals. */
 export function fmtStrike(strike: number): string {
   return `$${strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * OCC-style option symbol: ROOT + YYMMDD + C/P + strike × 1000 zero-padded to
+ * 8 digits, e.g. "AAPL260918C00150000" (§25 "Option symbol").
+ *
+ * FALLBACK ONLY (§25): the order-preview and order payloads now carry a
+ * server-built `option_symbol` — the exact string the broker is addressed
+ * with — and every surface renders that when the field is present. This
+ * display-side construction remains solely for payloads that predate the
+ * field (e.g. GET /api/positions contract blocks); a server-sent `null`
+ * means the symbol could NOT be built and must render "—", never this.
+ */
+export function occOptionSymbol(
+  root: string,
+  c: { expiry: string; strike: number; right: OptionRight },
+): string {
+  const yymmdd = c.expiry.replaceAll("-", "").slice(2);
+  return `${root}${yymmdd}${c.right}${String(Math.round(c.strike * 1000)).padStart(8, "0")}`;
 }
 
 /**

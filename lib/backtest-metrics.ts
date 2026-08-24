@@ -5,7 +5,10 @@ export function fmtNum(v: number | null, digits = 2): string {
   return v == null ? "—" : v.toFixed(digits);
 }
 
-/** null -> em dash; otherwise percent with optional leading + for gains. */
+/** null -> em dash; otherwise percent with optional leading + for gains.
+ *  Takes an ALREADY-PERCENT number (the backend's *_pct metric fields, e.g.
+ *  77.03) — unlike lib/risk-format's fmtPct, which takes a fraction and
+ *  scales ×100. Fraction-valued metrics (win_rate) must scale before calling. */
 export function fmtPct(v: number | null, signed = false): string {
   if (v == null) return "—";
   return `${signed && v > 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -18,7 +21,9 @@ export function returnColor(v: number | null | undefined): string {
 }
 
 export const METRIC_ROWS: {
-  key: keyof BacktestSegmentMetrics;
+  // numeric metric keys only — auto_decisions is the AUTO audit trail,
+  // rendered as its own table, never as a stat row
+  key: Exclude<keyof BacktestSegmentMetrics, "auto_decisions">;
   label: string;
   fmt: (v: number | null) => string;
 }[] = [
@@ -27,7 +32,9 @@ export const METRIC_ROWS: {
   { key: "sharpe", label: "Sharpe", fmt: (v) => fmtNum(v) },
   { key: "sortino", label: "Sortino", fmt: (v) => fmtNum(v) },
   { key: "max_drawdown_pct", label: "Max Drawdown", fmt: (v) => fmtPct(v) },
-  { key: "win_rate", label: "Win Rate", fmt: (v) => fmtPct(v) },
+  // win_rate is a FRACTION from the backend (0.25 = 25%, no _pct suffix) —
+  // the only fraction-valued row in this table; scale ×100 at display.
+  { key: "win_rate", label: "Win Rate", fmt: (v) => fmtPct(v == null ? null : v * 100) },
   { key: "profit_factor", label: "Profit Factor", fmt: (v) => fmtNum(v) },
   { key: "expectancy_pct", label: "Expectancy", fmt: (v) => fmtPct(v, true) },
   { key: "avg_trade_pct", label: "Avg Trade", fmt: (v) => fmtPct(v, true) },
